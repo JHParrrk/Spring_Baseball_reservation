@@ -1,0 +1,31 @@
+<configuration>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Hibernate SQL (delete/insert/select 쿼리) 완전 차단 -->
+    <logger name="org.hibernate.SQL" level="OFF"/>
+    <logger name="org.hibernate.orm.jdbc.bind" level="OFF"/>
+    <logger name="org.hibernate.orm.jdbc.extract" level="OFF"/>
+
+    <!-- Spring, Kafka, RabbitMQ, Redisson 등 프레임워크 로그 최소화 -->
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="org.apache.kafka" level="WARN"/>
+    <logger name="org.springframework.kafka" level="WARN"/>
+    <logger name="com.rabbitmq" level="WARN"/>
+    <logger name="org.springframework.amqp" level="WARN"/>
+    <logger name="org.redisson" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+    <logger name="org.hibernate" level="WARN"/>
+
+    <!-- 우리 애플리케이션 로그는 WARN으로 설정 (락 획득 등 반복 INFO 차단) -->
+    <logger name="com.firstspring.reservation" level="WARN"/>
+
+    <root level="WARN">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+</configuration>

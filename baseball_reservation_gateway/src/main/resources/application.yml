@@ -1,0 +1,111 @@
+spring:
+  application:
+    name: baseball-reservation-gateway
+
+  # ===================== OAuth2 설정 =====================
+  # Google OAuth2 클라이언트 — 게이트웨이가 직접 인증 코드를 받아 처리합니다.
+  # Google Cloud Console의 승인된 리다이렉트 URI에 아래 주소를 등록하세요:
+  #   http://localhost:8082/login/oauth2/code/google
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope:
+              - profile
+              - email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+
+  cloud:
+    gateway:
+      # ===================== 기본 필터 =====================
+      # DedupeResponseHeader: downstream 서비스(reservation/payment)가 CORS 헤더를 이미
+      # 응답에 포함하고 있을 때, 게이트웨이가 globalcors 설정으로 같은 헤더를 중복 추가하면
+      # 브라우저가 "헤더 값이 두 개"라고 판단하여 요청을 차단합니다.
+      # RETAIN_UNIQUE 모드: 동일한 값은 하나만 남기고 중복을 제거합니다.
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
+
+      # ===================== 라우팅 규칙 =====================
+      # 요청 경로에 따라 각 서비스로 트래픽을 전달합니다.
+      # 클라이언트는 게이트웨이(8082)만 알면 됩니다.
+      routes:
+        # --- Reservation 서비스 (port 8080) ---
+        - id: reservation-service-reservations
+          uri: ${RESERVATION_SERVICE_URL:http://localhost:8080}
+          predicates:
+            - Path=/reservations/**
+
+        - id: reservation-service-matches
+          uri: ${RESERVATION_SERVICE_URL:http://localhost:8080}
+          predicates:
+            - Path=/matches/**
+
+        - id: reservation-service-admin
+          uri: ${RESERVATION_SERVICE_URL:http://localhost:8080}
+          predicates:
+            - Path=/admin/**
+
+        - id: reservation-service-infra
+          uri: ${RESERVATION_SERVICE_URL:http://localhost:8080}
+          predicates:
+            - Path=/api/infra-test/**
+
+        # --- Payment 서비스 (port 8081) ---
+        - id: payment-service
+          uri: ${PAYMENT_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/payments/**
+
+      # ===================== CORS 설정 =====================
+      # 프론트엔드 요청을 허용합니다.
+      # 각 서비스의 CORS 설정과 중복되지 않도록 서비스 측 CORS를 비활성화하는 것이 이상적입니다.
+      globalcors:
+        corsConfigurations:
+          "[/**]":
+            allowedOrigins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+server:
+  port: ${GATEWAY_PORT:8082}
+
+# ===================== JWT 설정 =====================
+# reservation 서비스와 동일한 시크릿을 사용합니다 (서명 검증 공유)
+jwt:
+  secret: ${JWT_SECRET}
+  expiration-ms: 3600000
+
+# ===================== 내부 서비스 통신 =====================
+# gateway → reservation 내부 API 호출 시 사용하는 공유 시크릿
+internal:
+  secret: ${INTERNAL_SECRET:internal-secret-key}
+
+# reservation 서비스 URL (UserRegistrationClient에서 사용)
+reservation:
+  service:
+    url: ${RESERVATION_SERVICE_URL:http://localhost:8080}
+
+# 게이트웨이 자신의 외부 접근 URL (OAuth2 리다이렉트 후 /login/success 경로 생성에 사용)
+app:
+  base-url: ${APP_BASE_URL:http://localhost:8082}
+
+# Actuator: 헬스체크 및 라우팅 정보 노출
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    gateway:
+      enabled: true

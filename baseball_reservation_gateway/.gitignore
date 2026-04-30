@@ -1,0 +1,19 @@
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### IDE ###
+.idea
+*.iws
+*.iml
+*.ipr
+.settings/
+.classpath
+.project
+
+### 환경변수 — 절대 커밋하지 마세요 ###
+.env
+.env.local
+.env.production

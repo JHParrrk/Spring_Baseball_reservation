@@ -1,0 +1,109 @@
+{
+  "version": "1.0.0",
+  "producer": "Java AppCAT CLI",
+  "metadata": {
+    "analysisStartTime": "2026-04-02T04:28:06.096Z",
+    "analysisEndTime": "2026-04-02T04:31:26.726Z",
+    "privacyMode": "Protected",
+    "privacyModeHelpUrl": "https://aka.ms/appmod-privacy-mode",
+    "targetIds": [],
+    "targetDisplayNames": [],
+    "capabilities": [
+      "openjdk21"
+    ],
+    "os": [],
+    "id": "20260402132806",
+    "name": "Report_20260402132806",
+    "status": "completed",
+    "domains": [
+      "security"
+    ],
+    "mode": "issue-only"
+  },
+  "summary": {
+    "totalProjects": 1,
+    "totalIssues": 0,
+    "totalIncidents": 0,
+    "totalEffort": 0,
+    "charts": {
+      "severity": {
+        "mandatory": 0,
+        "optional": 0,
+        "potential": 0,
+        "information": 0
+      },
+      "category": {}
+    }
+  },
+  "projects": [
+    {
+      "path": ".",
+      "issues": 0,
+      "storyPoints": 0,
+      "properties": {
+        "appName": "board",
+        "jdkVersion": "25",
+        "frameworks": [
+          "Spring Boot",
+          "Spring"
+        ],
+        "languages": [
+          "Java"
+        ],
+        "tools": [
+          "Maven"
+        ]
+      },
+      "incidents": []
+    }
+  ],
+  "rules": {},
+  "security": [
+    {
+      "id": "CWE-1057",
+      "title": "Data Access Operations Outside of Expected Data Manager Component",
+      "category": "Code Quality",
+      "severity": "potential",
+      "description": "The product uses a dedicated, central data manager component as required by design, but it contains code that performs data-access operations that do not use this data manager.",
+      "evidence": {
+        "files": [
+          "src/main/java/com/firstspring/board/board/service/BoardServiceImpl.java"
+        ],
+        "explanation": "BoardServiceImpl.updateBoard() directly mutates the Board entity by calling board.setTitle() and board.setContent() on the reference returned from the repository, without subsequently calling boardRepository.save(board). This bypasses the designated data manager (BoardRepository) for the persistence/update operation, performing data modification outside the expected repository component."
+      },
+      "storyPoint": 5
+    },
+    {
+      "id": "CWE-732",
+      "title": "Incorrect Permission Assignment for Critical Resource",
+      "category": "Credentials & Secrets",
+      "severity": "optional",
+      "description": "The product specifies permissions for a security-critical resource in a way that allows that resource to be read or modified by unintended actors.",
+      "evidence": {
+        "files": [
+          "src/main/java/com/firstspring/board/board/controller/BoardController.java",
+          "src/main/java/com/firstspring/board/comment/controller/CommentController.java"
+        ],
+        "explanation": "BoardController exposes PUT /boards/{id} and DELETE /boards/{id} endpoints (lines 36-46) with no authentication or authorization restrictions, allowing any unauthenticated actor to modify or delete any board resource. CommentController similarly exposes DELETE /api/boards/{boardId}/comments/{commentId} (line 40) with no permission checks. There is no Spring Security configuration in the project, so all critical write and delete operations on resources are world-accessible."
+      },
+      "storyPoint": 5
+    },
+    {
+      "id": "CWE-778",
+      "title": "Insufficient Logging",
+      "category": "Credentials & Secrets",
+      "severity": "potential",
+      "description": "When a security-critical event occurs, the product either does not record the event or omits important details about the event when logging it.",
+      "evidence": {
+        "files": [
+          "src/main/java/com/firstspring/board/board/controller/BoardController.java",
+          "src/main/java/com/firstspring/board/board/service/BoardServiceImpl.java",
+          "src/main/java/com/firstspring/board/comment/controller/CommentController.java",
+          "src/main/java/com/firstspring/board/comment/service/CommentService.java"
+        ],
+        "explanation": "None of the controllers or service classes contain any logging. BoardController.createBoard(), updateBoard(), and deleteBoard() perform security-critical mutations with no log statements. BoardServiceImpl.createBoard(), updateBoard(), and deleteBoard() likewise produce no audit trail. CommentController.createComment() and deleteComment(), and CommentService.saveComment() and deleteComment() also have zero logging. Security-relevant events (resource creation, modification, deletion) are never recorded, making it impossible to detect or investigate malicious activity."
+      },
+      "storyPoint": 3
+    }
+  ]
+}

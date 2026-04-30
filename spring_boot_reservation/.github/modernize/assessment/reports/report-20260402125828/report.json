@@ -1,0 +1,294 @@
+{
+  "version": "1.0.0",
+  "producer": "Java AppCAT CLI",
+  "metadata": {
+    "analysisStartTime": "2026-04-02T03:58:28.328Z",
+    "analysisEndTime": "2026-04-02T04:01:27.623Z",
+    "privacyMode": "Protected",
+    "privacyModeHelpUrl": "https://aka.ms/appmod-privacy-mode",
+    "targetIds": [
+      "azure-appservice",
+      "azure-aks",
+      "azure-container-apps"
+    ],
+    "targetDisplayNames": [
+      "Azure App Service",
+      "Azure Kubernetes Service",
+      "Azure Container Apps"
+    ],
+    "capabilities": [
+      "openjdk21"
+    ],
+    "os": [
+      "linux",
+      "windows"
+    ],
+    "id": "20260402125828",
+    "name": "Report_20260402125828",
+    "status": "completed",
+    "domains": [
+      "java-upgrade",
+      "cloud-readiness"
+    ],
+    "mode": "issue-only"
+  },
+  "summary": {
+    "totalProjects": 1,
+    "totalIssues": 3,
+    "totalIncidents": 5,
+    "totalEffort": 34,
+    "charts": {
+      "severity": {
+        "mandatory": 4,
+        "optional": 0,
+        "potential": 1,
+        "information": 0
+      },
+      "category": {
+        "framework-upgrade": 4,
+        "spring-migration": 1
+      }
+    }
+  },
+  "projects": [
+    {
+      "path": ".",
+      "issues": 3,
+      "storyPoints": 34,
+      "properties": {
+        "appName": "board",
+        "jdkVersion": "21",
+        "frameworks": [
+          "Spring Boot",
+          "Spring"
+        ],
+        "languages": [
+          "Java"
+        ],
+        "tools": [
+          "Maven"
+        ]
+      },
+      "incidents": [
+        {
+          "ruleId": "spring-boot-to-azure-spring-boot-version-01000",
+          "incidentId": "29f4f8ed-4ead-429e-ad69-a0e5d1a32074",
+          "location": "pom.xml",
+          "locationKind": "File",
+          "line": 35,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 8,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 8,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 8,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "spring-boot-to-azure-spring-boot-version-01000",
+          "incidentId": "497b1a49-8292-4241-9043-644952fe3788",
+          "location": "pom.xml",
+          "locationKind": "File",
+          "line": 45,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 8,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 8,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 8,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "spring-framework-version-01000",
+          "incidentId": "68fa8c11-842d-48eb-b967-23c4b8b9161e",
+          "location": "pom.xml",
+          "locationKind": "File",
+          "line": 35,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 8,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 8,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 8,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "spring-framework-version-01000",
+          "incidentId": "ed0bb4b3-e73e-4988-a7fa-203e52c02a95",
+          "location": "pom.xml",
+          "locationKind": "File",
+          "line": 45,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 8,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 8,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 8,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "spring-boot-to-azure-restricted-config-01000",
+          "incidentId": "b4d7f074-5e56-424b-bd76-fabb97d47cb3",
+          "location": "src/main/resources/application.properties",
+          "locationKind": "File",
+          "line": 1,
+          "column": 0,
+          "targets": {
+            "azure-container-apps": {
+              "effort": 2,
+              "severity": "potential"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        }
+      ]
+    }
+  ],
+  "rules": {
+    "spring-boot-to-azure-restricted-config-01000": {
+      "id": "spring-boot-to-azure-restricted-config-01000",
+      "description": "The application uses restricted configurations for Azure Container Apps.\n These properties can be automatically injected into your application environment by Azure Container Apps to access managed Config Server and managed Eureka Server.\n Please remove them from your application, including configuration files, config server files, command line parameters, Java system attributes, and environment variables.\n\n If configured in **configuration files**: they will be ignored and overrided by Azure Container Apps.\n \n If configured in **Config Server files**, **command line parameters**, **Java system attribute**, **environment variable**: they need to be removed or you might experience conflicts and unexpected behavior.",
+      "title": "Restricted configurations found",
+      "severity": "potential",
+      "effort": 2,
+      "links": [
+        {
+          "url": "https://learn.microsoft.com/azure/developer/java/migration/migrate-spring-cloud-to-azure-container-apps#remove-restricted-configurations",
+          "title": "Migrate Spring Boot applications to Azure Container Apps - Remove restricted configurations"
+        },
+        {
+          "url": "https://learn.microsoft.com/azure/container-apps/java-config-server?tabs=azure-cli",
+          "title": "Connect to a managed Config Server for Spring in Azure Container Apps"
+        },
+        {
+          "url": "https://learn.microsoft.com/azure/container-apps/java-eureka-server?tabs=azure-cli",
+          "title": "Connect to a managed Eureka Server for Spring in Azure Container Apps"
+        }
+      ],
+      "labels": [
+        "target=azure-container-apps",
+        "source=springboot",
+        "domain=cloud-readiness",
+        "category=spring-migration",
+        "os=windows",
+        "os=linux"
+      ]
+    },
+    "spring-boot-to-azure-spring-boot-version-01000": {
+      "id": "spring-boot-to-azure-spring-boot-version-01000",
+      "description": "The application is using the End of OSS Support of Spring Boot Version. \nWith the officially supported new versions from Spring, you can get the best experience. Here are some steps you can take to update your application to the latest version of Spring Boot:\n\n* Choose a **supported Spring Boot version**: Check out Spring Boot Support Versions, determine the most suitable supported Spring Boot version.\\n\\n\n\n* **Update Spring Boot version**: Update the Spring Boot version of your application. There are automated tools like Rewrite to help you with the migration.\n\n* **Address code compatibility**: Review your application's codebase for any potential compatibility issues with the target Spring Boot version. Update deprecated APIs or features, address any language or library changes, and ensure that your code follows best practices and standards.\n\n* **Test thoroughly**: Execute a comprehensive testing process to verify the compatibility and functionality of your application with the new Spring Boot version. Perform unit tests, integration tests, and system tests to validate that all components and dependencies work as expected.\"",
+      "title": "Spring Boot Version is End of OSS Support",
+      "severity": "mandatory",
+      "effort": 8,
+      "links": [
+        {
+          "url": "https://learn.microsoft.com/azure/developer/java/migration/migrate-spring-boot-to-azure-container-apps",
+          "title": "Migrate Spring Boot applications to Azure Container Apps"
+        },
+        {
+          "url": "https://learn.microsoft.com/azure/container-apps/java-microservice-get-started?tabs=azure-cli",
+          "title": "Launch your first Java microservice application with managed Java components in Azure Container Apps"
+        },
+        {
+          "url": "https://spring.io/projects/spring-boot/#support",
+          "title": "Spring Boot Supported Versions"
+        },
+        {
+          "url": "https://github.com/spring-projects/spring-boot/wiki/Supported-Versions",
+          "title": "Spring Boot Support Policy"
+        }
+      ],
+      "labels": [
+        "source=springboot",
+        "target=azure-appservice",
+        "target=azure-aks",
+        "target=azure-container-apps",
+        "domain=java-upgrade",
+        "category=framework-upgrade",
+        "version",
+        "os=windows",
+        "os=linux"
+      ]
+    },
+    "spring-framework-version-01000": {
+      "id": "spring-framework-version-01000",
+      "description": "Your application is using the Spring Framework version End of OSS Support. \nUpgrading to a supported version ensures better performance, security, and compatibility with modern tools.\n  1. Pick a Supported Version: Review the Spring Framework support policy and choose an actively supported version.\n  2. Update Your Project: Change the Spring Framework version in your pom.xml or build.gradle.\n  3. Fix Compatibility Issues: Update deprecated code, replace removed features, and ensure dependencies are compatible with the new Spring Framework version.\n  4. Thoroughly Test: Run unit, integration, and end-to-end tests to make sure everything still works after the upgrade.",
+      "title": "Spring Framework Version End of OSS Support",
+      "severity": "mandatory",
+      "effort": 8,
+      "links": [
+        {
+          "url": "https://spring.io/projects/spring-framework#support",
+          "title": "Spring Framework Supported Versions"
+        },
+        {
+          "url": "https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-Versions",
+          "title": "Spring Framework Support Policy"
+        }
+      ],
+      "labels": [
+        "source=spring",
+        "target=azure-appservice",
+        "target=azure-aks",
+        "target=azure-container-apps",
+        "domain=java-upgrade",
+        "category=framework-upgrade",
+        "version",
+        "os=windows",
+        "os=linux"
+      ]
+    }
+  },
+  "security": []
+}
