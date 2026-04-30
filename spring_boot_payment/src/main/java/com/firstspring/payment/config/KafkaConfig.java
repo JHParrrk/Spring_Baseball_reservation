@@ -23,14 +23,14 @@ import java.util.Map;
 /**
  * Payment 서비스 Kafka 설정
  *
- * Consumer: reservation.success 토픽 구독 (예약 성공 이벤트 수신)
+ * Consumer: reservation.payment 토픽 구독 (CVC 포함 결제 요청 이벤트 수신 — payment 서비스 전용)
  * Producer: payment.result 토픽 발행 (결제 결과 이벤트 발행)
  */
 @Configuration
 public class KafkaConfig {
 
-    /** 소비할 토픽: reservation 서비스가 발행한 예약 성공 이벤트 */
-    public static final String RESERVATION_SUCCESS_TOPIC = "reservation.success";
+    /** 소비할 토픽: reservation 서비스가 발행한 결제 요청 이벤트 (CVC 포함, payment 서비스 전용) */
+    public static final String RESERVATION_PAYMENT_TOPIC = "reservation.payment";
 
     /** 발행할 토픽: 결제 결과를 reservation 서비스로 전달 */
     public static final String PAYMENT_RESULT_TOPIC = "payment.result";

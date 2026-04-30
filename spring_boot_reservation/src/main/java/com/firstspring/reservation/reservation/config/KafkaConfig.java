@@ -1,6 +1,7 @@
 package com.firstspring.reservation.reservation.config;
 
 import com.firstspring.reservation.reservation.dto.PaymentResultEvent;
+import com.firstspring.reservation.reservation.dto.ReservationPaymentEvent;
 import com.firstspring.reservation.reservation.dto.ReservationSuccessEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -33,8 +34,11 @@ import java.util.Map;
 @Configuration
 public class KafkaConfig {
 
-    /** 예약 성공 이벤트를 발행할 토픽 이름 */
+    /** 예약 성공 이벤트를 발행할 토픽 이름 (알림 전용, CVC 미포함) */
     public static final String RESERVATION_SUCCESS_TOPIC = "reservation.success";
+
+    /** 결제 요청 이벤트를 발행할 토픽 이름 (payment 서비스 전용, CVC 포함) */
+    public static final String RESERVATION_PAYMENT_TOPIC = "reservation.payment";
 
     /** payment 서비스로부터 결제 결과를 수신할 토픽 이름 */
     public static final String PAYMENT_RESULT_TOPIC = "payment.result";
@@ -57,6 +61,14 @@ public class KafkaConfig {
     @Bean
     public org.apache.kafka.clients.admin.NewTopic reservationSuccessTopic() {
         return TopicBuilder.name(RESERVATION_SUCCESS_TOPIC)
+                .partitions(1)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
+    public org.apache.kafka.clients.admin.NewTopic reservationPaymentTopic() {
+        return TopicBuilder.name(RESERVATION_PAYMENT_TOPIC)
                 .partitions(1)
                 .replicas(1)
                 .build();
@@ -103,6 +115,25 @@ public class KafkaConfig {
     @Bean("reservationKafkaTemplate")
     public KafkaTemplate<String, ReservationSuccessEvent> reservationKafkaTemplate() {
         return new KafkaTemplate<>(reservationProducerFactory());
+    }
+
+    @Bean
+    public ProducerFactory<String, ReservationPaymentEvent> reservationPaymentProducerFactory() {
+        Map<String, Object> config = new HashMap<>();
+        config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+        config.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
+        return new DefaultKafkaProducerFactory<>(config);
+    }
+
+    /**
+     * CVC를 포함하는 결제 요청 이벤트 전용 KafkaTemplate.
+     * reservation.payment 토픽으로 발행합니다 (payment 서비스만 구독).
+     */
+    @Bean("reservationPaymentKafkaTemplate")
+    public KafkaTemplate<String, ReservationPaymentEvent> reservationPaymentKafkaTemplate() {
+        return new KafkaTemplate<>(reservationPaymentProducerFactory());
     }
 
     // ===================== Consumer =====================

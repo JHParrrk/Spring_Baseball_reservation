@@ -2,9 +2,11 @@ package com.firstspring.reservation.reservation.repository;
 
 import com.firstspring.reservation.reservation.dto.UserReservationStat;
 import com.firstspring.reservation.reservation.entity.Reservation;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -33,12 +35,6 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     Page<Reservation> findAllWithDetails(Pageable pageable);
 
     /**
-     * 특정 사용자의 예약 목록을 Seat, Match를 JOIN FETCH하여 조회합니다.
-     */
-    @Query("SELECT r FROM Reservation r JOIN FETCH r.seat s JOIN FETCH s.match WHERE r.user.id = :userId")
-    List<Reservation> findByUserIdWithDetails(@Param("userId") Long userId);
-
-    /**
      * 특정 사용자의 예약 목록을 Seat, Match를 JOIN FETCH하여 페이지네이션으로 조회합니다.
      */
     @Query(value = "SELECT r FROM Reservation r JOIN FETCH r.seat s JOIN FETCH s.match WHERE r.user.id = :userId", countQuery = "SELECT COUNT(r) FROM Reservation r JOIN r.seat s WHERE r.user.id = :userId")
@@ -50,9 +46,23 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     @Query("SELECT r FROM Reservation r JOIN FETCH r.seat s JOIN FETCH s.match WHERE r.id = :id")
     Optional<Reservation> findByIdWithDetails(@Param("id") Long id);
 
-    List<Reservation> findByUserId(Long userId);
+    /**
+     * [C1 동시성 제어] 단일 예약을 비관적 쓰기 락(SELECT FOR UPDATE)으로 조회합니다.
+     * RabbitMQ 타임아웃 처리(ReservationTimeoutListener)와의 Race Condition 방지에 사용합니다.
+     * 반드시 @Transactional 메서드 내에서만 호출하세요.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Reservation r WHERE r.id = :id")
+    Optional<Reservation> findByIdForUpdate(@Param("id") Long id);
 
-    List<Reservation> findBySeatId(Long seatId);
+    /**
+     * [C1 동시성 제어] 단일 예약을 비관적 쓰기 락 + JOIN FETCH로 조회합니다.
+     * confirmReservation, cancelReservationByPaymentFailure에서 사용합니다.
+     * 연관 엔티티까지 한 번에 로딩하여 N+1 없이 락을 획득합니다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Reservation r JOIN FETCH r.seat s JOIN FETCH s.match WHERE r.id = :id")
+    Optional<Reservation> findByIdWithDetailsForUpdate(@Param("id") Long id);
 
     /**
      * 여러 예약 ID를 한 번의 쿼리로 조회합니다 (Seat, Match JOIN FETCH 포함).

@@ -67,8 +67,9 @@ public class ReservationTimeoutListener {
             // (기존 @Transactional 방식은 메서드 리턴 후 프록시가 커밋하므로
             // 메서드 내부의 basicAck가 커밋보다 먼저 실행되는 문제가 있었습니다.)
             transactionTemplate.executeWithoutResult(status -> {
-                // 1. 예약 조회 (이미 삭제된 경우 무시)
-                reservationRepository.findById(reservationId).ifPresentOrElse(reservation -> {
+                // [C1] 비관적 락: Kafka payment.result와 동시에 도달하는 Race Condition 방지
+                // findByIdForUpdate(SELECT FOR UPDATE)로 confirmReservation과 동일한 락을 경쟁합니다.
+                reservationRepository.findByIdForUpdate(reservationId).ifPresentOrElse(reservation -> {
 
                     // 2. 여전히 PENDING 상태인 경우에만 취소 처리
                     if (reservation.getStatus() == Reservation.Status.PENDING) {

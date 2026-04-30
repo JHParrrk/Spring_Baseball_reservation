@@ -5,10 +5,12 @@ import com.firstspring.reservation.common.exception.custom.ResourceNotFoundExcep
 import com.firstspring.reservation.common.exception.custom.UnauthorizedAccessException;
 import com.firstspring.reservation.reservation.dto.ReservationResponse;
 import com.firstspring.reservation.reservation.entity.Reservation;
+import com.firstspring.reservation.reservation.event.ReservationPaymentInitiatedEvent;
 import com.firstspring.reservation.reservation.repository.ReservationRepository;
 import com.firstspring.reservation.seat.entity.Seat;
 import com.firstspring.reservation.seat.repository.SeatRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -39,13 +41,16 @@ public class ReservationServiceImpl implements ReservationService {
     private final ReservationRepository reservationRepository;
     private final SeatRepository seatRepository;
     private final ReservationEventPublisher eventPublisher;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     public ReservationServiceImpl(ReservationRepository reservationRepository,
             SeatRepository seatRepository,
-            ReservationEventPublisher eventPublisher) {
+            ReservationEventPublisher eventPublisher,
+            ApplicationEventPublisher applicationEventPublisher) {
         this.reservationRepository = reservationRepository;
         this.seatRepository = seatRepository;
         this.eventPublisher = eventPublisher;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
     // Fetch Join으로 N+1 방지 + 페이지네이션으로 OOM 방지
@@ -110,6 +115,10 @@ public class ReservationServiceImpl implements ReservationService {
         if (!reservation.getUser().getId().equals(expectedUserId)) {
             throw new UnauthorizedAccessException("해당 예약에 대한 삭제 권한이 없습니다.");
         }
+        // [S1] 결제 완료 예약 삭제 방어: 환불 없이 데이터 소멸 방지
+        if (reservation.getStatus() == Reservation.Status.CONFIRMED) {
+            throw new InvalidRequestException("결제 완료된 예약은 삭제할 수 없습니다. 취소 요청 후 삭제하세요.");
+        }
         // 취소 상태가 아닌 예약 삭제 시 좌석을 다시 AVAILABLE로 복원
         if (reservation.getStatus() != Reservation.Status.CANCELLED) {
             Seat seat = reservation.getSeat();
@@ -123,7 +132,8 @@ public class ReservationServiceImpl implements ReservationService {
     @Override
     public void confirmReservation(Long reservationId) {
         log.info("[Payment] 결제 성공 수신 — 예약 CONFIRMED 처리. reservationId={}", reservationId);
-        Reservation reservation = reservationRepository.findByIdWithDetails(reservationId)
+        // [C1] 비관적 락: RabbitMQ 타임아웃과 동시 상태 전이 Race Condition 방지
+        Reservation reservation = reservationRepository.findByIdWithDetailsForUpdate(reservationId)
                 .orElseThrow(() -> new ResourceNotFoundException("예약 내역을 찾을 수 없습니다. ID: " + reservationId));
 
         if (reservation.getStatus() == Reservation.Status.CANCELLED) {
@@ -148,7 +158,8 @@ public class ReservationServiceImpl implements ReservationService {
     @Override
     public void cancelReservationByPaymentFailure(Long reservationId) {
         log.warn("[Payment] 결제 실패 수신 — 예약 CANCELLED 처리. reservationId={}", reservationId);
-        Reservation reservation = reservationRepository.findByIdWithDetails(reservationId)
+        // [C1] 비관적 락: RabbitMQ 타임아웃과 동시 상태 전이 Race Condition 방지
+        Reservation reservation = reservationRepository.findByIdWithDetailsForUpdate(reservationId)
                 .orElseThrow(() -> new ResourceNotFoundException("예약 내역을 찾을 수 없습니다. ID: " + reservationId));
 
         if (reservation.getStatus() == Reservation.Status.CANCELLED) {
@@ -189,10 +200,11 @@ public class ReservationServiceImpl implements ReservationService {
             results.add(ReservationResponse.from(reservation));
         }
 
-        // 3단계: 검증 통과 후에만 Kafka 발행 (모두 성공하거나 모두 안 하거나)
+        // 3단계: 검증 통과 후 Spring 이벤트 발행 (모두 성공하거나 모두 안 하거나)
+        // @TransactionalEventListener(AFTER_COMMIT)이 DB 커밋 완료 후에만 Kafka를 발행합니다.
         for (ReservationResponse response : results) {
-            eventPublisher.publishSuccess(response, cvc);
-            log.info("[Pay] Kafka 결제 이벤트 발행 완료 — reservationId={}", response.id());
+            applicationEventPublisher.publishEvent(new ReservationPaymentInitiatedEvent(response, cvc));
+            log.info("[Pay] 결제 개시 Spring 이벤트 발행 — reservationId={}", response.id());
         }
 
         return results;

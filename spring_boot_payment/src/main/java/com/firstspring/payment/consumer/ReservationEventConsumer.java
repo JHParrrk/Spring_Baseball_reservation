@@ -26,7 +26,7 @@ public class ReservationEventConsumer {
     private final PaymentService paymentService;
 
     @KafkaListener(
-            topics = KafkaConfig.RESERVATION_SUCCESS_TOPIC,
+            topics = KafkaConfig.RESERVATION_PAYMENT_TOPIC,
             groupId = KafkaConfig.PAYMENT_GROUP_ID,
             containerFactory = "reservationEventListenerContainerFactory")
     public void handleReservationSuccess(ReservationSuccessEvent event) {

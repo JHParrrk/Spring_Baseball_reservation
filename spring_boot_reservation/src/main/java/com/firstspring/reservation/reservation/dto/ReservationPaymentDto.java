@@ -2,6 +2,7 @@ package com.firstspring.reservation.reservation.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 
@@ -20,5 +21,6 @@ public record ReservationPaymentDto(
         List<@NotNull Long> reservationIds,
 
         @NotBlank(message = "CVC는 필수 입력값입니다.")
+        @Pattern(regexp = "\\d{3,4}", message = "CVC는 3~4자리 숫자여야 합니다.")
         String cvc) {
 }
