@@ -1,6 +1,8 @@
 export type MatchStatus = "UPCOMING" | "ON_SALE" | "CANCELLED" | "CLOSED";
 export type SeatStatus = "AVAILABLE" | "RESERVED";
 export type ReservationStatus = "PENDING" | "CONFIRMED" | "CANCELLED";
+export type UserRole = "USER" | "ADMIN";
+export type UserStatus = "active" | "inactive" | "suspended" | "blacklisted";
 
 export interface MatchResponse {
   id: number;
@@ -38,4 +40,52 @@ export interface PageResponse<T> {
   totalPages: number;
   totalElements: number;
   size: number;
+}
+
+// ===================== User / Me API Types =====================
+export interface UserResponse {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+}
+
+// ===================== Admin API Types =====================
+export interface UserSummaryResponse {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  activeReservations: number;
+  cancelledReservations: number;
+}
+
+export interface AdminReservationResponse {
+  id: number;
+  userId: number;
+  seatId: number;
+  seatNumber: string;
+  tier: string;
+  price: number;
+  matchTitle: string;
+  matchDate: string;
+  stadiumName: string;
+  status: ReservationStatus;
+  createdAt: string;
+}
+
+export interface MatchCreateRequest {
+  title: string;
+  matchDate: string;
+  stadiumName: string;
+}
+
+export interface SeatBulkCreateRequest {
+  seats: Array<{
+    seatNumber: string;
+    tier: string;
+    price: number;
+  }>;
 }

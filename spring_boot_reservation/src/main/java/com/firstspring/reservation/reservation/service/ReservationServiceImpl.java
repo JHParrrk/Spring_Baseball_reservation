@@ -56,14 +56,6 @@ public class ReservationServiceImpl implements ReservationService {
     // Fetch Join으로 N+1 방지 + 페이지네이션으로 OOM 방지
     @Override
     @Transactional(readOnly = true)
-    public Page<ReservationResponse> getAllReservations(Pageable pageable) {
-        log.info("전체 예약 목록 조회 - page={}, size={}", pageable.getPageNumber(), pageable.getPageSize());
-        return reservationRepository.findAllWithDetails(pageable)
-                .map(ReservationResponse::from);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public Page<ReservationResponse> getReservationsByUser(Long userId, Pageable pageable) {
         log.info("사용자 예약 조회 - userId={}", userId);
         return reservationRepository.findByUserIdWithDetails(userId, pageable)

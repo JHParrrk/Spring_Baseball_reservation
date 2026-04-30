@@ -43,6 +43,11 @@ spring:
           predicates:
             - Path=/matches/**
 
+        - id: reservation-service-users
+          uri: ${RESERVATION_SERVICE_URL:http://localhost:8080}
+          predicates:
+            - Path=/users/**
+
         - id: reservation-service-admin
           uri: ${RESERVATION_SERVICE_URL:http://localhost:8080}
           predicates:

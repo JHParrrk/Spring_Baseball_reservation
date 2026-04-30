@@ -48,6 +48,7 @@ public class AdminMatchController {
     }
 
     @PostMapping
+    @Transactional
     @Operation(summary = "경기 등록", description = "신규 경기를 등록합니다. 기본 상태는 UPCOMING(예매 오픈 전)입니다.")
     public ResponseEntity<MatchResponse> createMatch(@Valid @RequestBody MatchCreateRequest request) {
         MatchInfo match = new MatchInfo(request.title(), request.matchDate(), request.stadiumName());

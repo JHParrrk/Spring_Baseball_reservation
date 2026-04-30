@@ -69,10 +69,6 @@ public class User {
         return name;
     }
 
-    public String getUsername() {
-        return name;
-    }
-
     public String getEmail() {
         return email;
     }

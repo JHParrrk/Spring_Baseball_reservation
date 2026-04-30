@@ -60,7 +60,7 @@ public class Seat extends BaseTimeEntity {
      * 좌석 상태를 나타내는 enum입니다.
      * AVAILABLE = 예매 가능
      * PENDING = 예매 진행 중 (5분 타임아웃 대기)
-     * RESERVED = 예매 확정 (결제 완료 단계를 위해 예약된 값 — 현재 미사용, 향후 결제 기능 도입 시 활성화 예정)
+     * RESERVED = 예매 확정 (결제 성공 시 confirmReservation()에서 설정)
      */
     public enum Status {
         AVAILABLE, PENDING, RESERVED

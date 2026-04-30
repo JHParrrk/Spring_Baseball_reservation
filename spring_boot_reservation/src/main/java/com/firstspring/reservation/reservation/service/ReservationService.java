@@ -19,8 +19,6 @@ import java.util.List;
 public interface ReservationService {
 
     // 페이지네이션 적용: 대용량 데이터 OOM 방지
-    Page<ReservationResponse> getAllReservations(Pageable pageable);
-
     Page<ReservationResponse> getReservationsByUser(Long userId, Pageable pageable);
 
     // expectedUserId : JWT 토큰에서 추출한 사용자 ID. 소유권 검증에 사용
