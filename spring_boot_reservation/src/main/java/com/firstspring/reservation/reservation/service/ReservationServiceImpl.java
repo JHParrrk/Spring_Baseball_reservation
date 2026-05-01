@@ -202,4 +202,22 @@ public class ReservationServiceImpl implements ReservationService {
 
         return results;
     }
+
+    @Override
+    public ReservationResponse forceCancel(Long reservationId) {
+        log.warn("[Admin] 예약 강제 취소 요청 — reservationId={}", reservationId);
+        // [C1] 비관적 락: 사용자 cancelReservation / RabbitMQ 타임아웃과의 동시 상태 전이 Race Condition 방지
+        Reservation reservation = reservationRepository.findByIdWithDetailsForUpdate(reservationId)
+                .orElseThrow(() -> new ResourceNotFoundException("예약 내역을 찾을 수 없습니다. ID: " + reservationId));
+        if (reservation.getStatus() == Reservation.Status.CANCELLED) {
+            throw new InvalidRequestException("이미 취소된 예약입니다. reservationId=" + reservationId);
+        }
+        reservation.setStatus(Reservation.Status.CANCELLED);
+        reservationRepository.save(reservation);
+        Seat seat = reservation.getSeat();
+        seat.setStatus(Seat.Status.AVAILABLE);
+        seatRepository.save(seat);
+        log.info("[Admin] 예약 강제 취소 완료 — reservationId={}, seatId={}", reservationId, seat.getId());
+        return ReservationResponse.from(reservation);
+    }
 }

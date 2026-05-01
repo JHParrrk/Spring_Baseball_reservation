@@ -41,4 +41,10 @@ public interface ReservationService {
      * @param cvc            결제 CVC
      */
     List<ReservationResponse> payReservations(List<Long> reservationIds, Long userId, String cvc);
+
+    /**
+     * 관리자 전용 예약 강제 취소.
+     * 비관적 락을 사용하여 사용자 cancelReservation / RabbitMQ 타임아웃과의 Race Condition을 방지합니다.
+     */
+    ReservationResponse forceCancel(Long reservationId);
 }

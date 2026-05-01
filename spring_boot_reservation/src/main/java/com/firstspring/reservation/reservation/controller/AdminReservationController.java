@@ -1,12 +1,9 @@
 package com.firstspring.reservation.reservation.controller;
 
-import com.firstspring.reservation.common.exception.custom.InvalidRequestException;
-import com.firstspring.reservation.common.exception.custom.ResourceNotFoundException;
 import com.firstspring.reservation.reservation.dto.ReservationResponse;
 import com.firstspring.reservation.reservation.entity.Reservation;
 import com.firstspring.reservation.reservation.repository.ReservationRepository;
-import com.firstspring.reservation.seat.entity.Seat;
-import com.firstspring.reservation.seat.repository.SeatRepository;
+import com.firstspring.reservation.reservation.service.ReservationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
@@ -24,11 +21,11 @@ import org.springframework.web.bind.annotation.*;
 public class AdminReservationController {
 
     private final ReservationRepository reservationRepository;
-    private final SeatRepository seatRepository;
+    private final ReservationService reservationService;
 
-    public AdminReservationController(ReservationRepository reservationRepository, SeatRepository seatRepository) {
+    public AdminReservationController(ReservationRepository reservationRepository, ReservationService reservationService) {
         this.reservationRepository = reservationRepository;
-        this.seatRepository = seatRepository;
+        this.reservationService = reservationService;
     }
 
     @GetMapping
@@ -47,20 +44,8 @@ public class AdminReservationController {
     }
 
     @PostMapping("/{id}/cancel")
-    @Transactional
     @Operation(summary = "예약 강제 취소", description = "관리자 권한으로 특정 예약을 강제 취소합니다. 좌석 상태가 AVAILABLE로 복원됩니다.")
     public ResponseEntity<ReservationResponse> forceCancel(@PathVariable Long id) {
-        Reservation reservation = reservationRepository.findByIdWithDetails(id)
-                .orElseThrow(() -> new ResourceNotFoundException("예약 내역을 찾을 수 없습니다. ID: " + id));
-        if (reservation.getStatus() == Reservation.Status.CANCELLED) {
-            throw new InvalidRequestException("이미 취소된 예약입니다. reservationId=" + id);
-        }
-        reservation.setStatus(Reservation.Status.CANCELLED);
-        reservationRepository.save(reservation);
-        Seat seat = reservation.getSeat();
-        seat.setStatus(Seat.Status.AVAILABLE);
-        seatRepository.save(seat);
-        log.info("[Admin] 예약 강제 취소 - reservationId={}, seatId={}", id, seat.getId());
-        return ResponseEntity.ok(ReservationResponse.from(reservation));
+        return ResponseEntity.ok(reservationService.forceCancel(id));
     }
 }
