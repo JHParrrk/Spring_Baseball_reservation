@@ -76,7 +76,8 @@ public class ReservationServiceImpl implements ReservationService {
     @Override
     public ReservationResponse cancelReservation(Long id, Long expectedUserId) {
         log.info("예약 취소 요청 - reservationId={}, userId={}", id, expectedUserId);
-        Reservation reservation = reservationRepository.findByIdWithDetails(id)
+        // [C1] 비관적 락: Kafka confirmReservation / RabbitMQ 타임아웃과 동시 상태 전이 Race Condition 방지
+        Reservation reservation = reservationRepository.findByIdWithDetailsForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("예약 내역을 찾을 수 없습니다. ID: " + id));
         if (!reservation.getUser().getId().equals(expectedUserId)) {
             throw new UnauthorizedAccessException("해당 예약에 대한 취소 권한이 없습니다.");

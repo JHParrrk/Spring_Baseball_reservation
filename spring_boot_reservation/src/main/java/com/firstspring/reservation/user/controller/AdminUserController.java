@@ -1,5 +1,6 @@
 package com.firstspring.reservation.user.controller;
 
+import com.firstspring.reservation.common.exception.custom.InvalidRequestException;
 import com.firstspring.reservation.common.exception.custom.ResourceNotFoundException;
 import com.firstspring.reservation.reservation.dto.UserReservationStat;
 import com.firstspring.reservation.reservation.entity.Reservation;
@@ -14,16 +15,19 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/admin/users")
 @Tag(name = "Admin - User API", description = "유저 상태/권한 관리 (ADMIN 전용)")
+@PreAuthorize("hasRole('ADMIN')") // [C2] URL 레벨 보안에 추가하는 메서드 레벨 이중 방어
 public class AdminUserController {
 
     private final UserRepository userRepository;
@@ -60,12 +64,19 @@ public class AdminUserController {
         return ResponseEntity.ok(result);
     }
 
+    private static final Set<String> ALLOWED_STATUSES = Set.of("active", "inactive", "suspended", "blacklisted");
+    private static final Set<String> ALLOWED_ROLES = Set.of("USER", "ADMIN");
+
     @PatchMapping("/{id}/status")
     @Transactional
     @Operation(summary = "유저 상태 변경", description = "유저 상태를 변경합니다. (active / inactive / suspended / blacklisted)")
     public ResponseEntity<UserResponse> updateUserStatus(
             @PathVariable Long id,
             @RequestParam String status) {
+        // [C3] 허용 값 이외의 임의 문자열 삽입 방지
+        if (!ALLOWED_STATUSES.contains(status)) {
+            throw new InvalidRequestException("허용되지 않는 status 값입니다. 허용: " + ALLOWED_STATUSES);
+        }
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("유저를 찾을 수 없습니다. ID: " + id));
         user.setStatus(status);
@@ -78,6 +89,10 @@ public class AdminUserController {
     public ResponseEntity<UserResponse> updateUserRole(
             @PathVariable Long id,
             @RequestParam String role) {
+        // [C3] 허용 값 이외의 임의 문자열 삽입 방지
+        if (!ALLOWED_ROLES.contains(role)) {
+            throw new InvalidRequestException("허용되지 않는 role 값입니다. 허용: " + ALLOWED_ROLES);
+        }
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("유저를 찾을 수 없습니다. ID: " + id));
         user.setRole(role);

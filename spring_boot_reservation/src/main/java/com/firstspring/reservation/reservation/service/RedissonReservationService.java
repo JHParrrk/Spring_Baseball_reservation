@@ -54,6 +54,11 @@ public class RedissonReservationService {
      *         DB 트랜잭션 처리 시간(수 초)을 고려하여 충분한 여유를 두어야 합니다.
      */
     public List<ReservationResponse> createReservationWithLock(Long userId, ReservationDto dto) {
+        // [Q3] 중복 seatId 방어: 같은 좌석에 대한 다중 예약 레코드 생성 방지
+        long distinctCount = dto.seatIds().stream().distinct().count();
+        if (distinctCount != dto.seatIds().size()) {
+            throw new InvalidRequestException("중복된 좌석 ID가 포함되어 있습니다.");
+        }
         // 데드락 방지: seatId 오름차순 정렬로 항상 같은 순서로 락 획득
         List<Long> sortedSeatIds = dto.seatIds().stream().sorted().toList();
         List<RLock> acquiredLocks = new ArrayList<>();

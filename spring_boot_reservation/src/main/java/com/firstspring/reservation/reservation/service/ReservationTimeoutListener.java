@@ -77,7 +77,8 @@ public class ReservationTimeoutListener {
                         reservationRepository.save(reservation);
 
                         // 3. 좌석 상태를 AVAILABLE로 복원
-                        seatRepository.findById(seatId).ifPresent(seat -> {
+                        // [P2] 비관적 락으로 조회하여 Kafka CONFIRMED 처리와의 Race Condition 방지
+                        seatRepository.findByIdForUpdate(seatId).ifPresent(seat -> {
                             if (seat.getStatus() == Seat.Status.PENDING) {
                                 seat.setStatus(Seat.Status.AVAILABLE);
                                 seatRepository.save(seat);
