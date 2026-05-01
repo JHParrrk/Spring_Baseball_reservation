@@ -33,7 +33,7 @@ public class OAuth2SuccessHandler implements ServerAuthenticationSuccessHandler 
 
     private final JwtUtil jwtUtil;
 
-    @Value("${app.base-url:http://localhost:8082}")
+    @Value("${app.base-url}")
     private String baseUrl;
 
     @Override

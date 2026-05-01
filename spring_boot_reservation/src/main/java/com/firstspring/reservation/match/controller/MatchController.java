@@ -13,6 +13,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/matches")
 @Tag(name = "Match API", description = "경기 목록 및 좌석 조회 API")
+@Transactional(readOnly = true)
 public class MatchController {
 
     private static final List<MatchInfo.MatchStatus> VISIBLE_STATUSES = List.of(MatchInfo.MatchStatus.UPCOMING,

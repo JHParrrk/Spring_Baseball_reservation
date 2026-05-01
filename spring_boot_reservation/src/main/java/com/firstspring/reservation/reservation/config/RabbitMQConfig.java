@@ -35,14 +35,17 @@ public class RabbitMQConfig {
     // --- 큐 이름 상수 ---
     public static final String PENDING_QUEUE = "reservation.pending.queue";
     public static final String CANCEL_QUEUE = "reservation.cancel.queue";
+    public static final String CANCEL_DLQ = "reservation.cancel.dlq";
 
     // --- Exchange 이름 상수 ---
     public static final String PENDING_EXCHANGE = "reservation.pending.exchange";
     public static final String DLX_EXCHANGE = "reservation.dlx";
+    public static final String CANCEL_DLX_EXCHANGE = "reservation.cancel.dlx";
 
     // --- Routing Key 상수 ---
     public static final String PENDING_ROUTING_KEY = "reservation.pending";
     public static final String CANCEL_ROUTING_KEY = "reservation.cancel";
+    public static final String CANCEL_DLQ_ROUTING_KEY = "reservation.cancel.dead";
 
     /** TTL 5분 (밀리초) */
     private static final int TTL_MS = 5 * 60 * 1000;
@@ -59,6 +62,15 @@ public class RabbitMQConfig {
     @Bean
     public DirectExchange dlxExchange() {
         return new DirectExchange(DLX_EXCHANGE);
+    }
+
+    /**
+     * cancel.queue에서 처리 실패(basicNack requeue=false)된 메시지를 받는 Exchange.
+     * cancel.queue의 DLX로 설정되어, 처리 불가 메시지를 cancel.dlq로 라우팅합니다.
+     */
+    @Bean
+    public DirectExchange cancelDlxExchange() {
+        return new DirectExchange(CANCEL_DLX_EXCHANGE);
     }
 
     // ===================== Queue 정의 =====================
@@ -81,7 +93,19 @@ public class RabbitMQConfig {
     /** Listener가 구독하는 큐 (TTL 만료된 메시지가 도착하는 곳) */
     @Bean
     public Queue cancelQueue() {
-        return new Queue(CANCEL_QUEUE, true);
+        Map<String, Object> args = new HashMap<>();
+        args.put("x-dead-letter-exchange", CANCEL_DLX_EXCHANGE);
+        args.put("x-dead-letter-routing-key", CANCEL_DLQ_ROUTING_KEY);
+        return new Queue(CANCEL_QUEUE, true, false, false, args);
+    }
+
+    /**
+     * cancel.queue에서 처리 실패한 메시지를 보관하는 Dead Letter Queue.
+     * 수동 복구 및 원인 분석용으로 활용합니다.
+     */
+    @Bean
+    public Queue cancelDlqQueue() {
+        return new Queue(CANCEL_DLQ, true);
     }
 
     // ===================== Binding 정의 =====================
@@ -98,6 +122,13 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(cancelQueue())
                 .to(dlxExchange())
                 .with(CANCEL_ROUTING_KEY);
+    }
+
+    @Bean
+    public Binding cancelDlqBinding() {
+        return BindingBuilder.bind(cancelDlqQueue())
+                .to(cancelDlxExchange())
+                .with(CANCEL_DLQ_ROUTING_KEY);
     }
 
     // ===================== 메시지 직렬화 설정 =====================

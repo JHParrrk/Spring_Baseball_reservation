@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.validation.Valid;
 import java.security.MessageDigest;
 
 /**
@@ -49,7 +50,7 @@ public class InternalUserController {
     @Transactional
     public ResponseEntity<OAuth2RegisterResponse> registerOrGetUser(
             @RequestHeader("X-Internal-Key") String requestSecret,
-            @RequestBody OAuth2RegisterRequest request) {
+            @Valid @RequestBody OAuth2RegisterRequest request) {
 
         // MessageDigest.isEqual: 상수 시간 비교로 timing attack 방지
         if (!MessageDigest.isEqual(Utf8.encode(internalSecret), Utf8.encode(requestSecret))) {
