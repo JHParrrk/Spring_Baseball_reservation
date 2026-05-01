@@ -104,7 +104,7 @@ public class AppStartupListener implements ApplicationListener<ApplicationReadyE
                 "LG 트윈스 vs KIA 타이거즈",
                 LocalDateTime.now().plusDays(7),
                 "잠실야구장");
-        matchRepository.save(match);
+        match = matchRepository.saveAndFlush(match);
         logger.info("경기 생성 완료: {}", match.getTitle());
 
         // 3. 좌석 1,000개 생성 (A~D 구역, 각 250석)

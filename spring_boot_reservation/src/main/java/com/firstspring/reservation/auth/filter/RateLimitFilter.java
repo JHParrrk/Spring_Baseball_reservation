@@ -15,18 +15,21 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * [Rate Limiting] Redis(Redisson) 기반 IP별 요청 제한 필터입니다.
+ * [Rate Limiting] Redis(Redisson) 기반 사용자별 요청 제한 필터입니다.
  *
- * 예약 경로(/reservations)에 대해 IP당 분당 60회로 제한합니다.
+ * 예약 경로(/reservations)에 대해 사용자당 분당 60회로 제한합니다.
+ * JWT가 있으면 userId 기준, 없으면 IP 기준으로 키를 설정합니다.
  * 초과 시 HTTP 429 Too Many Requests를 반환합니다.
  *
  * 구현 근거:
  * - 이미 프로젝트에 Redisson이 도입되어 있어 추가 의존성 없이 RRateLimiter를 활용합니다.
- * - X-Forwarded-For 헤더를 우선 확인하여 프록시 뒤 클라이언트 IP를 정확히 식별합니다.
+ * - IP 기준 대신 userId 기준을 사용하여 NAT/프록시 환경의 오탐을 방지합니다.
  */
 @Slf4j
 @Component
@@ -59,7 +62,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         String clientIp = getClientIp(request);
-        String key = "rate_limit:" + clientIp;
+        String rateLimitKey = extractRateLimitKey(request, clientIp);
+        String key = "rate_limit:" + rateLimitKey;
 
         // Fail-Open: Redis 장애 시 서비스를 중단하지 않고 요청을 통과시킵니다.
         // 가용성을 우선시하는 정책이며, Redis 복구 후 Rate Limit이 자동으로 재활성화됩니다.
@@ -74,7 +78,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             });
 
             if (!rateLimiter.tryAcquire()) {
-                log.warn("[RateLimit] 요청 제한 초과. IP={}, URI={}", clientIp, path);
+                log.warn("[RateLimit] 요청 제한 초과. key={}, URI={}", rateLimitKey, path);
                 response.setStatus(429);
                 response.setContentType("application/json;charset=UTF-8");
                 response.getWriter().write(
@@ -83,10 +87,57 @@ public class RateLimitFilter extends OncePerRequestFilter {
             }
         } catch (Exception e) {
             // Fail-Open: Redis 연결 오류 등 예외 발생 시 Rate Limit을 건너뜁니다.
-            log.warn("[RateLimit] Redis 오류로 Rate Limit 건너뜀 (Fail-Open). IP={}, error={}", clientIp, e.getMessage());
+            log.warn("[RateLimit] Redis 오류로 Rate Limit 건너뜀 (Fail-Open). key={}, error={}", rateLimitKey, e.getMessage());
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * Rate Limit 키를 결정합니다.
+     * JWT가 있으면 userId 기준, 없으면 IP 기준으로 반환합니다.
+     * userId 기준을 사용하면 NAT/로드밸런서 뒤에서도 사용자별로 정확히 제한됩니다.
+     */
+    private String extractRateLimitKey(HttpServletRequest request, String fallbackIp) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return "ip:" + fallbackIp;
+        }
+        try {
+            String token = authHeader.substring(7);
+            String[] parts = token.split("\\.");
+            if (parts.length < 2) {
+                return "ip:" + fallbackIp;
+            }
+            // Base64url 디코딩 (패딩 없는 경우도 처리)
+            byte[] payloadBytes = Base64.getUrlDecoder().decode(padBase64(parts[1]));
+            String payloadJson = new String(payloadBytes, StandardCharsets.UTF_8);
+            // userId 추출 (단순 문자열 파싱, 검증은 JwtAuthenticationFilter에서 수행)
+            int idx = payloadJson.indexOf("\"userId\":");
+            if (idx == -1) {
+                return "ip:" + fallbackIp;
+            }
+            String afterKey = payloadJson.substring(idx + 9).trim();
+            // userId는 숫자 또는 문자열일 수 있음
+            StringBuilder sb = new StringBuilder();
+            boolean inString = afterKey.charAt(0) == '"';
+            int start = inString ? 1 : 0;
+            for (int i = start; i < afterKey.length(); i++) {
+                char c = afterKey.charAt(i);
+                if (inString && c == '"') break;
+                if (!inString && (c == ',' || c == '}')) break;
+                sb.append(c);
+            }
+            String userId = sb.toString().trim();
+            return "user:" + userId;
+        } catch (Exception e) {
+            return "ip:" + fallbackIp;
+        }
+    }
+
+    private String padBase64(String base64url) {
+        int padding = (4 - base64url.length() % 4) % 4;
+        return base64url + "=".repeat(padding);
     }
 
     /**
