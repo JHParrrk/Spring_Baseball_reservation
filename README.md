@@ -2,10 +2,6 @@
 
 야구 경기 좌석 예약 및 결제 통합 플랫폼
 
-<p align="center">
-  <img src="https://spring.io/img/spring-logo-9146a4d3298760c2e7e49595184e1975.svg" width="160" alt="Spring Logo" />
-</p>
-
 ---
 
 > **"좌석 선택부터 결제까지, 하나의 플랫폼에서"**
