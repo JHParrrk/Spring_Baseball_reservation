@@ -1,5 +1,7 @@
 package com.firstspring.reservation.auth.filter;
 
+import com.firstspring.reservation.auth.jwt.JwtUtil;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,15 +17,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * [Rate Limiting] Redis(Redisson) 기반 사용자별 요청 제한 필터입니다.
  *
- * 예약 경로(/reservations)에 대해 사용자당 분당 60회로 제한합니다.
+ * 예약/관리자 경로(/reservations, /admin)에 대해 사용자당 분당 60회로 제한합니다.
  * JWT가 있으면 userId 기준, 없으면 IP 기준으로 키를 설정합니다.
  * 초과 시 HTTP 429 Too Many Requests를 반환합니다.
  *
@@ -37,16 +35,10 @@ import java.util.concurrent.ConcurrentMap;
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private final RedissonClient redissonClient;
+    private final JwtUtil jwtUtil;
 
     /** IP당 분당 허용 요청 수 */
     private static final long RATE_PER_MINUTE = 60;
-
-    /**
-     * RateLimiter 초기화(trySetRate) 여부를 로컬에서 추적합니다.
-     * 서버 재시작 시 Redis의 기존 limiter 상태는 유지되므로 trySetRate 중복 호출이 방지됩니다.
-     * (Redis 재시작 시에는 자동으로 초기화가 다시 수행됩니다.)
-     */
-    private final ConcurrentMap<String, Boolean> initializedKeys = new ConcurrentHashMap<>();
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -55,27 +47,23 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         String path = request.getRequestURI();
 
-        // 인증/예약 경로에만 Rate Limit 적용 (Swagger, 헬스체크 등은 제외)
-        if (!path.startsWith("/reservations")) {
+        // 예약/관리자 경로에만 Rate Limit 적용 (Swagger, 헬스체크 등은 제외)
+        String scope = path.startsWith("/admin") ? "admin" : "reservation";
+        if (!path.startsWith("/reservations") && !path.startsWith("/admin")) {
             filterChain.doFilter(request, response);
             return;
         }
 
         String clientIp = getClientIp(request);
         String rateLimitKey = extractRateLimitKey(request, clientIp);
-        String key = "rate_limit:" + rateLimitKey;
+        String key = "rate_limit:" + scope + ":" + rateLimitKey;
 
         // Fail-Open: Redis 장애 시 서비스를 중단하지 않고 요청을 통과시킵니다.
         // 가용성을 우선시하는 정책이며, Redis 복구 후 Rate Limit이 자동으로 재활성화됩니다.
         try {
             RRateLimiter rateLimiter = redissonClient.getRateLimiter(key);
-
-            // 이미 초기화된 key는 trySetRate를 다시 호출하지 않습니다 (성능 최적화).
-            // 초기화 기록이 없는 경우에만 Redis에 trySetRate를 호출합니다.
-            initializedKeys.computeIfAbsent(key, k -> {
-                rateLimiter.trySetRate(RateType.OVERALL, RATE_PER_MINUTE, 1, RateIntervalUnit.MINUTES);
-                return Boolean.TRUE;
-            });
+            // Redis에 rate 설정이 없을 때만 최초 1회 설정됩니다.
+            rateLimiter.trySetRate(RateType.OVERALL, RATE_PER_MINUTE, 1, RateIntervalUnit.MINUTES);
 
             if (!rateLimiter.tryAcquire()) {
                 log.warn("[RateLimit] 요청 제한 초과. key={}, URI={}", rateLimitKey, path);
@@ -95,7 +83,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     /**
      * Rate Limit 키를 결정합니다.
-     * JWT가 있으면 userId 기준, 없으면 IP 기준으로 반환합니다.
+     * 유효한 JWT가 있으면 userId 기준, 없으면 IP 기준으로 반환합니다.
      * userId 기준을 사용하면 NAT/로드밸런서 뒤에서도 사용자별로 정확히 제한됩니다.
      */
     private String extractRateLimitKey(HttpServletRequest request, String fallbackIp) {
@@ -105,39 +93,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
         try {
             String token = authHeader.substring(7);
-            String[] parts = token.split("\\.");
-            if (parts.length < 2) {
+            if (token.isBlank() || !jwtUtil.validateToken(token)) {
                 return "ip:" + fallbackIp;
             }
-            // Base64url 디코딩 (패딩 없는 경우도 처리)
-            byte[] payloadBytes = Base64.getUrlDecoder().decode(padBase64(parts[1]));
-            String payloadJson = new String(payloadBytes, StandardCharsets.UTF_8);
-            // userId 추출 (단순 문자열 파싱, 검증은 JwtAuthenticationFilter에서 수행)
-            int idx = payloadJson.indexOf("\"userId\":");
-            if (idx == -1) {
+            Long userId = jwtUtil.getUserIdFromToken(token);
+            if (userId == null) {
                 return "ip:" + fallbackIp;
             }
-            String afterKey = payloadJson.substring(idx + 9).trim();
-            // userId는 숫자 또는 문자열일 수 있음
-            StringBuilder sb = new StringBuilder();
-            boolean inString = afterKey.charAt(0) == '"';
-            int start = inString ? 1 : 0;
-            for (int i = start; i < afterKey.length(); i++) {
-                char c = afterKey.charAt(i);
-                if (inString && c == '"') break;
-                if (!inString && (c == ',' || c == '}')) break;
-                sb.append(c);
-            }
-            String userId = sb.toString().trim();
             return "user:" + userId;
         } catch (Exception e) {
             return "ip:" + fallbackIp;
         }
-    }
-
-    private String padBase64(String base64url) {
-        int padding = (4 - base64url.length() % 4) % 4;
-        return base64url + "=".repeat(padding);
     }
 
     /**

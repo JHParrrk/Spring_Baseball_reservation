@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -19,4 +20,13 @@ public interface MatchRepository extends JpaRepository<MatchInfo, Long> {
     List<MatchInfo> findByStatusIn(List<MatchInfo.MatchStatus> statuses);
 
     Page<MatchInfo> findByStatusIn(List<MatchInfo.MatchStatus> statuses, Pageable pageable);
+
+    List<MatchInfo> findByStatusAndMatchDateBetween(
+            MatchInfo.MatchStatus status,
+            LocalDateTime start,
+            LocalDateTime end);
+
+        List<MatchInfo> findByStatusAndMatchDateBefore(
+            MatchInfo.MatchStatus status,
+            LocalDateTime boundary);
 }

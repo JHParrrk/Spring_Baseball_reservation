@@ -1,13 +1,14 @@
 package com.firstspring.reservation.reservation.service;
 
 import com.firstspring.reservation.reservation.dto.ReservationResponse;
+import com.firstspring.reservation.reservation.entity.Reservation;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
 /**
- * [스프링 입문] 예약 서비스 인터페이스입니다.
+ * 예약 서비스 인터페이스
  *
  * 실제 비즈니스 로직은 ReservationServiceImpl에 구현됩니다.
  *
@@ -20,6 +21,10 @@ public interface ReservationService {
 
     // 페이지네이션 적용: 대용량 데이터 OOM 방지
     Page<ReservationResponse> getReservationsByUser(Long userId, Pageable pageable);
+
+        // 관리자용 필터 조회: 상태/유저/경기 조건으로 전체 예약 페이지 조회
+        Page<ReservationResponse> getReservationsForAdmin(Reservation.Status status, Long userId, Long matchId,
+            Pageable pageable);
 
     // expectedUserId : JWT 토큰에서 추출한 사용자 ID. 소유권 검증에 사용
     ReservationResponse getReservation(Long id, Long expectedUserId);

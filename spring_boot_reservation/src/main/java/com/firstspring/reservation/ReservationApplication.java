@@ -3,9 +3,10 @@ package com.firstspring.reservation;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * [스프링 입문] 애플리케이션의 시작점(Entry Point)입니다.
+ * 애플리케이션의 시작점(Entry Point)입니다.
  *
  * @SpringBootApplication 은 세 가지 어노테이션을 한꺼번에 포함합니다:
  *                        - @Configuration : 이 클래스가 Bean 설정 클래스임을 선언
@@ -19,11 +20,12 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
  *                        IoC 컨테이너(ApplicationContext)가 구성됩니다.
  */
 @EnableJpaAuditing
+@EnableScheduling
 @SpringBootApplication
 public class ReservationApplication {
 
 	public static void main(String[] args) {
-		// 스프링 부트 애플리케이션을 실행하는 단 한 줄의 코드
+		// 스프링 부트 애플리케이션을 실행
 		SpringApplication.run(ReservationApplication.class, args);
 	}
 

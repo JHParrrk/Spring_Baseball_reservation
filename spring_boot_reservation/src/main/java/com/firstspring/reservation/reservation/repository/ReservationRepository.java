@@ -27,14 +27,6 @@ import java.util.Optional;
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
 
     /**
-     * 전체 예약 목록을 Seat, Match를 JOIN FETCH하여 페이지네이션으로 조회합니다.
-     * N+1 문제를 방지합니다.
-     * countQuery를 별도 명시하여 Hibernate JOIN FETCH + count 혼용 경고를 방지합니다.
-     */
-    @Query(value = "SELECT r FROM Reservation r JOIN FETCH r.seat s JOIN FETCH s.match", countQuery = "SELECT COUNT(r) FROM Reservation r JOIN r.seat s JOIN s.match")
-    Page<Reservation> findAllWithDetails(Pageable pageable);
-
-    /**
      * 특정 사용자의 예약 목록을 Seat, Match를 JOIN FETCH하여 페이지네이션으로 조회합니다.
      */
     @Query(value = "SELECT r FROM Reservation r JOIN FETCH r.seat s JOIN FETCH s.match WHERE r.user.id = :userId", countQuery = "SELECT COUNT(r) FROM Reservation r JOIN r.seat s WHERE r.user.id = :userId")

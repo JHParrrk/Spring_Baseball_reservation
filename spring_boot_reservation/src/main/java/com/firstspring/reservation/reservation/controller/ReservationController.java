@@ -90,7 +90,7 @@ public class ReservationController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "예약 삭제", description = "본인의 예약 레코드를 완전히 삭제합니다.")
+    @Operation(summary = "예약 삭제", description = "본인의 취소된(CANCELLED) 예약 레코드를 완전히 삭제합니다.")
     public ResponseEntity<Void> deleteReservation(
             @PathVariable Long id,
             @AuthenticationPrincipal UserPrincipal principal) {

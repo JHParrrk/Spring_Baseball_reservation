@@ -30,8 +30,7 @@ import java.util.List;
  *                1) getReservation : 소유자 확인 후 예약 조회
  *                2) cancelReservation : 소유자 확인 + 중복 취소 막기 → 취소 + 좌석 AVAILABLE
  *                복원 (명시적 save)
- *                3) deleteReservation : 소유자 확인 → 취소 안 된 상태면 좌석도 AVAILABLE 복원 →
- *                레코드 삭제
+ *                3) deleteReservation : 소유자 확인 → CANCELLED 상태에서만 삭제 허용
  */
 @Slf4j
 @Service
@@ -40,16 +39,13 @@ public class ReservationServiceImpl implements ReservationService {
 
     private final ReservationRepository reservationRepository;
     private final SeatRepository seatRepository;
-    private final ReservationEventPublisher eventPublisher;
     private final ApplicationEventPublisher applicationEventPublisher;
 
     public ReservationServiceImpl(ReservationRepository reservationRepository,
             SeatRepository seatRepository,
-            ReservationEventPublisher eventPublisher,
             ApplicationEventPublisher applicationEventPublisher) {
         this.reservationRepository = reservationRepository;
         this.seatRepository = seatRepository;
-        this.eventPublisher = eventPublisher;
         this.applicationEventPublisher = applicationEventPublisher;
     }
 
@@ -59,6 +55,16 @@ public class ReservationServiceImpl implements ReservationService {
     public Page<ReservationResponse> getReservationsByUser(Long userId, Pageable pageable) {
         log.info("사용자 예약 조회 - userId={}", userId);
         return reservationRepository.findByUserIdWithDetails(userId, pageable)
+                .map(ReservationResponse::from);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ReservationResponse> getReservationsForAdmin(Reservation.Status status, Long userId, Long matchId,
+            Pageable pageable) {
+        String statusStr = status != null ? status.name() : null;
+        return reservationRepository
+                .findAllByFilter(statusStr, userId, matchId, pageable)
                 .map(ReservationResponse::from);
     }
 
@@ -108,15 +114,10 @@ public class ReservationServiceImpl implements ReservationService {
         if (!reservation.getUser().getId().equals(expectedUserId)) {
             throw new UnauthorizedAccessException("해당 예약에 대한 삭제 권한이 없습니다.");
         }
-        // [S1] 결제 완료 예약 삭제 방어: 환불 없이 데이터 소멸 방지
-        if (reservation.getStatus() == Reservation.Status.CONFIRMED) {
-            throw new InvalidRequestException("결제 완료된 예약은 삭제할 수 없습니다. 취소 요청 후 삭제하세요.");
-        }
-        // 취소 상태가 아닌 예약 삭제 시 좌석을 다시 AVAILABLE로 복원
+        // [R6-C1] 데이터 정합성 보호: 삭제는 CANCELLED 상태에서만 허용
+        // PENDING 삭제를 허용하면 결제 결과(Kafka) 도착 시 예약이 사라져 상태 불일치가 발생할 수 있습니다.
         if (reservation.getStatus() != Reservation.Status.CANCELLED) {
-            Seat seat = reservation.getSeat();
-            seat.setStatus(Seat.Status.AVAILABLE);
-            seatRepository.save(seat);
+            throw new InvalidRequestException("취소된 예약만 삭제할 수 있습니다. 먼저 예약을 취소하세요.");
         }
         reservationRepository.deleteById(id);
         log.info("예약 삭제 완료 - reservationId={}", id);
