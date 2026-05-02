@@ -9,13 +9,13 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * [Kafka] reservation.success 토픽 Consumer
+ * [Kafka] reservation.payment 토픽 Consumer
  *
- * reservation 서비스가 예약 생성 완료 후 발행한 이벤트를 수신합니다.
+ * reservation 서비스가 결제 요청 시 발행한 이벤트를 수신합니다.
  * 수신 후 PaymentService.processPayment()를 호출하여 결제를 처리합니다.
  *
  * 처리 흐름:
- * reservation.success (Kafka) → [이 Consumer] → PaymentService (mock 결제)
+ * reservation.payment (Kafka) → [이 Consumer] → PaymentService (mock 결제)
  *   → payment.result (Kafka) → reservation 서비스 (상태 업데이트)
  */
 @Slf4j

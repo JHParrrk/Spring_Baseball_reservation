@@ -25,26 +25,13 @@ public class PaymentProcessedEventListener {
     public void handlePaymentProcessed(PaymentProcessedEvent event) {
         log.info("[Event] DB 커밋 확인 — Kafka payment.result 발행 시작. reservationId={}",
                 event.resultEvent().reservationId());
-
-        int maxAttempts = 3;
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            try {
-                resultPublisher.publishResult(event.resultEvent());
-                return;
-            } catch (Exception e) {
-                log.warn("[Event] Kafka 결제 결과 발행 실패 (시도 {}/{}). reservationId={}",
-                        attempt, maxAttempts, event.resultEvent().reservationId(), e);
-                if (attempt < maxAttempts) {
-                    try {
-                        Thread.sleep(500L * attempt);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
-            }
+        try {
+            resultPublisher.publishResult(event.resultEvent());
+        } catch (Exception e) {
+            log.error("[Event] Kafka 결제 결과 이벤트 발행 실패. reservationId={}. 상위 재처리/장애 감지 경로로 예외를 전파합니다.",
+                    event.resultEvent().reservationId(), e);
+            // 실패를 호출 측으로 전파하여 상위 재처리/장애 감지 경로에서 처리할 수 있도록 합니다.
+            throw e;
         }
-        log.error("[Event] Kafka 결제 결과 이벤트 발행 최종 실패 (3회 재시도). reservationId={}. 수동 복구가 필요합니다.",
-                event.resultEvent().reservationId());
     }
 }

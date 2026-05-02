@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * [Kafka] 결제 결과 이벤트 발행 서비스 (Producer)
  *
@@ -21,10 +23,14 @@ public class PaymentResultPublisher {
     private final KafkaTemplate<String, PaymentResultEvent> paymentResultKafkaTemplate;
 
     public void publishResult(PaymentResultEvent event) {
-        paymentResultKafkaTemplate.send(
-                KafkaConfig.PAYMENT_RESULT_TOPIC,
-                String.valueOf(event.reservationId()),
-                event);
+        try {
+            paymentResultKafkaTemplate.send(
+                    KafkaConfig.PAYMENT_RESULT_TOPIC,
+                    String.valueOf(event.reservationId()),
+                    event).get(3, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new IllegalStateException("[Kafka] 결제 결과 이벤트 발행 실패. reservationId=" + event.reservationId(), e);
+        }
 
         log.info("[Kafka] 결제 결과 이벤트 발행 완료. reservationId={}, status={}, paymentId={}",
                 event.reservationId(), event.status(), event.paymentId());

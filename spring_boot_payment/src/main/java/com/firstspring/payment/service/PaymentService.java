@@ -40,9 +40,17 @@ public class PaymentService {
     public void processPayment(ReservationSuccessEvent event) {
         Long reservationId = event.reservationId();
 
-        // 멱등성: 이미 처리된 결제면 스킵
-        if (paymentRepository.findByReservationId(reservationId).isPresent()) {
-            log.warn("[Payment] 이미 처리된 예약입니다. reservationId={} — 중복 이벤트 무시", reservationId);
+        // 멱등성: 이미 처리된 결제면 기존 결과를 재발행해 다운스트림 상태를 복구합니다.
+        Payment existing = paymentRepository.findByReservationId(reservationId).orElse(null);
+        if (existing != null) {
+            PaymentResultEvent existingResult = buildResultEvent(existing);
+            if (existingResult != null) {
+                eventPublisher.publishEvent(new PaymentProcessedEvent(existingResult));
+                log.warn("[Payment] 이미 처리된 예약입니다. reservationId={} — 기존 결과 재발행", reservationId);
+            } else {
+                log.warn("[Payment] 이미 존재하지만 최종 상태가 아닙니다. reservationId={}, status={}",
+                        reservationId, existing.getStatus());
+            }
             return;
         }
 
@@ -78,27 +86,37 @@ public class PaymentService {
         PaymentResultEvent resultEvent;
         if (isSuccess) {
             payment.markSuccess();
-            resultEvent = new PaymentResultEvent(
-                    payment.getId(),
-                    reservationId,
-                    event.userId(),
-                    "SUCCESS",
-                    null,
-                    LocalDateTime.now());
+            resultEvent = buildResultEvent(payment);
             log.info("[Payment] 결제 성공. reservationId={}, paymentId={}", reservationId, payment.getId());
         } else {
             payment.markFailed(failureReason);
-            resultEvent = new PaymentResultEvent(
-                    payment.getId(),
-                    reservationId,
-                    event.userId(),
-                    "FAILED",
-                    failureReason,
-                    LocalDateTime.now());
+            resultEvent = buildResultEvent(payment);
             log.warn("[Payment] 결제 실패. reservationId={}, reason={}", reservationId, failureReason);
         }
 
         // DB 커밋 후 Kafka 발행 (유령 메시지 방지)
         eventPublisher.publishEvent(new PaymentProcessedEvent(resultEvent));
+    }
+
+    private PaymentResultEvent buildResultEvent(Payment payment) {
+        if (payment.getStatus() == Payment.Status.SUCCESS) {
+            return new PaymentResultEvent(
+                    payment.getId(),
+                    payment.getReservationId(),
+                    payment.getUserId(),
+                    "SUCCESS",
+                    null,
+                    payment.getProcessedAt() != null ? payment.getProcessedAt() : LocalDateTime.now());
+        }
+        if (payment.getStatus() == Payment.Status.FAILED) {
+            return new PaymentResultEvent(
+                    payment.getId(),
+                    payment.getReservationId(),
+                    payment.getUserId(),
+                    "FAILED",
+                    payment.getFailureReason(),
+                    payment.getProcessedAt() != null ? payment.getProcessedAt() : LocalDateTime.now());
+        }
+        return null;
     }
 }

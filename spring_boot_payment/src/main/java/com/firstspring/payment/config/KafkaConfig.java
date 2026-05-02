@@ -64,7 +64,7 @@ public class KafkaConfig {
 
         JsonDeserializer<ReservationSuccessEvent> deserializer =
                 new JsonDeserializer<>(ReservationSuccessEvent.class, false);
-        deserializer.addTrustedPackages("*");
+        deserializer.addTrustedPackages("com.firstspring.payment.dto", "com.firstspring.reservation.reservation.dto");
 
         return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), deserializer);
     }
