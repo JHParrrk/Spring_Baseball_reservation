@@ -1,8 +1,9 @@
 <template>
   <div class="seat-grid">
     <div class="legend">
-      <span class="badge available">AVAILABLE</span>
-      <span class="badge reserved">RESERVED</span>
+      <span class="badge available">예매 가능</span>
+      <span class="badge pending">선점 중</span>
+      <span class="badge reserved">예매 완료</span>
       <span class="badge selected">선택됨</span>
     </div>
 
@@ -17,10 +18,11 @@
           class="seat"
           :class="{
             available: seat.status === 'AVAILABLE',
+            pending: seat.status === 'PENDING',
             reserved: seat.status === 'RESERVED',
             selected: selectedSeatIds?.includes(seat.id) ?? false,
           }"
-          :disabled="seat.status === 'RESERVED'"
+          :disabled="seat.status !== 'AVAILABLE'"
           @click="selectSeat(seat)"
         >
           {{ seat.seatNumber }}
@@ -85,6 +87,12 @@ function selectSeat(seat: SeatResponse): void {
   border: 1px solid #90caf9;
 }
 
+.badge.pending {
+  background: #fff8e1;
+  color: #f57f17;
+  border: 1px solid #ffe082;
+}
+
 .badge.reserved {
   background: #f5f5f5;
   color: #999;
@@ -135,6 +143,13 @@ function selectSeat(seat: SeatResponse): void {
 
 .seat.available:hover {
   background: #bbdefb;
+}
+
+.seat.pending {
+  background: #fff8e1;
+  border-color: #ffe082;
+  color: #f57f17;
+  cursor: not-allowed;
 }
 
 .seat.reserved {

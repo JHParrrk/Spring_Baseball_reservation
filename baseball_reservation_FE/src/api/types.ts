@@ -1,5 +1,5 @@
 export type MatchStatus = "UPCOMING" | "ON_SALE" | "CANCELLED" | "CLOSED";
-export type SeatStatus = "AVAILABLE" | "RESERVED";
+export type SeatStatus = "AVAILABLE" | "PENDING" | "RESERVED";
 export type ReservationStatus = "PENDING" | "CONFIRMED" | "CANCELLED";
 export type UserRole = "USER" | "ADMIN";
 export type UserStatus = "active" | "inactive" | "suspended" | "blacklisted";
@@ -82,10 +82,24 @@ export interface MatchCreateRequest {
   stadiumName: string;
 }
 
-export interface SeatBulkCreateRequest {
-  seats: Array<{
-    seatNumber: string;
-    tier: string;
-    price: number;
-  }>;
+export interface StadiumTemplateSeatItem {
+  seatNumber: string;
+  tier: string;
+  price: number;
+}
+
+export interface StadiumTemplateSummaryResponse {
+  stadiumName: string;
+  seatCount: number;
+}
+
+export interface StadiumTemplateDetailResponse {
+  stadiumName: string;
+  seatCount: number;
+  seats: StadiumTemplateSeatItem[];
+}
+
+export interface StadiumTemplateCreateRequest {
+  stadiumName: string;
+  seats: StadiumTemplateSeatItem[];
 }

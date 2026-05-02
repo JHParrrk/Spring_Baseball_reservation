@@ -11,7 +11,9 @@ import { useRoute } from "vue-router";
 import NavBar from "./components/NavBar.vue";
 
 const route = useRoute();
-const showNav = computed(() => route.name !== "login-success");
+const showNav = computed(
+  () => route.name !== "login" && route.name !== "login-success",
+);
 </script>
 
 <style>

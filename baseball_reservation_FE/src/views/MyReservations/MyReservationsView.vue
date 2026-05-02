@@ -1,5 +1,5 @@
 <template>
-  <div class="page">
+  <div class="my-reservations-page">
     <div class="page-header">
       <h1>내 예약 내역</h1>
     </div>
@@ -60,22 +60,47 @@
         </div>
 
         <div class="card-actions">
-          <button
-            v-if="res.status === 'CONFIRMED'"
-            class="btn cancel"
-            :disabled="actionId === res.id"
-            @click="cancel(res.id)"
-          >
-            {{ actionId === res.id ? "처리 중..." : "예약 취소" }}
-          </button>
-          <button
-            v-if="res.status === 'CANCELLED'"
-            class="btn delete"
-            :disabled="actionId === res.id"
-            @click="deleteRes(res.id)"
-          >
-            {{ actionId === res.id ? "처리 중..." : "삭제" }}
-          </button>
+          <template v-if="res.status === 'CONFIRMED'">
+            <button
+              v-if="confirmingId !== res.id"
+              class="ui-btn ui-btn-reservation-cancel"
+              :disabled="actionId === res.id"
+              @click="confirmingId = res.id"
+            >
+              예약 취소
+            </button>
+            <span v-else class="confirm-inline">
+              취소?
+              <button
+                class="ui-btn ui-btn-reservation-cancel"
+                @click="cancel(res.id)"
+              >
+                확인
+              </button>
+              <button class="btn-xs-neutral" @click="confirmingId = null">
+                아니요
+              </button>
+            </span>
+          </template>
+          <template v-if="res.status === 'CANCELLED'">
+            <button
+              v-if="confirmingId !== res.id"
+              class="ui-btn ui-btn-delete"
+              :disabled="actionId === res.id"
+              @click="confirmingId = res.id"
+            >
+              삭제
+            </button>
+            <span v-else class="confirm-inline">
+              삭제?
+              <button class="ui-btn ui-btn-delete" @click="deleteRes(res.id)">
+                확인
+              </button>
+              <button class="btn-xs-neutral" @click="confirmingId = null">
+                아니요
+              </button>
+            </span>
+          </template>
           <span v-if="res.status === 'PENDING'" class="pending-msg">
             체크박스를 선택하여 결제하세요.
           </span>
@@ -89,7 +114,7 @@
         >선택한 <strong>{{ checkedIds.length }}매</strong> · 합계
         <strong>{{ formatPrice(checkedTotalPrice) }}원</strong></span
       >
-      <button class="btn pay" @click="showPaymentModal = true">
+      <button class="ui-btn ui-btn-pay" @click="showPaymentModal = true">
         선택 결제하기
       </button>
     </div>
@@ -127,6 +152,7 @@ import { ref, computed, onMounted } from "vue";
 import { reservationApi } from "@/api";
 import PaymentModal from "@/components/PaymentModal.vue";
 import type { ReservationResponse, ReservationStatus } from "@/api/types";
+import "./MyReservationsView.css";
 
 const reservations = ref<ReservationResponse[]>([]);
 const loading = ref(true);
@@ -134,6 +160,7 @@ const error = ref<string | null>(null);
 const currentPage = ref(0);
 const totalPages = ref(1);
 const actionId = ref<number | null>(null);
+const confirmingId = ref<number | null>(null);
 
 const checkedIds = ref<number[]>([]);
 const showPaymentModal = ref(false);
@@ -163,6 +190,7 @@ async function loadPage(page: number): Promise<void> {
   loading.value = true;
   error.value = null;
   checkedIds.value = [];
+  confirmingId.value = null;
   try {
     const res = await reservationApi.getMyReservations(page);
     reservations.value = res.data.content;
@@ -183,11 +211,11 @@ async function pay(cvc: string): Promise<void> {
     await reservationApi.pay([...checkedIds.value], cvc);
     showPaymentModal.value = false;
     checkedIds.value = [];
+    await loadPage(currentPage.value);
     payResult.value = {
       type: "success",
       message: "결제 요청 완료! 처리 결과는 잠시 후 확인하세요. ✅",
     };
-    await loadPage(currentPage.value);
     setTimeout(() => (payResult.value = null), 5000);
   } catch {
     payResult.value = {
@@ -200,26 +228,32 @@ async function pay(cvc: string): Promise<void> {
 }
 
 async function cancel(id: number): Promise<void> {
-  if (!confirm("예약을 취소하시겠습니까?")) return;
+  confirmingId.value = null;
   actionId.value = id;
   try {
     await reservationApi.cancel(id);
     await loadPage(currentPage.value);
   } catch {
-    alert("취소 처리에 실패했습니다.");
+    payResult.value = {
+      type: "error",
+      message: "취소 처리에 실패했습니다.",
+    };
   } finally {
     actionId.value = null;
   }
 }
 
 async function deleteRes(id: number): Promise<void> {
-  if (!confirm("예약 내역을 삭제하시겠습니까?")) return;
+  confirmingId.value = null;
   actionId.value = id;
   try {
     await reservationApi.delete(id);
     await loadPage(currentPage.value);
   } catch {
-    alert("삭제에 실패했습니다.");
+    payResult.value = {
+      type: "error",
+      message: "삭제에 실패했습니다.",
+    };
   } finally {
     actionId.value = null;
   }
@@ -251,289 +285,3 @@ function statusLabel(status: ReservationStatus): string {
 
 onMounted(() => void loadPage(0));
 </script>
-
-<style scoped>
-.page {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 32px 20px;
-}
-
-.page-header h1 {
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: #1565c0;
-  margin-bottom: 24px;
-}
-
-.reservation-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.reservation-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 20px 24px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
-}
-
-.card-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 14px;
-}
-
-.match-title {
-  font-size: 1.05rem;
-  font-weight: 700;
-  margin-bottom: 6px;
-}
-
-.meta {
-  display: flex;
-  gap: 16px;
-  font-size: 0.85rem;
-  color: #666;
-}
-
-.res-status {
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.res-status.confirmed {
-  background: #e8f5e9;
-  color: #2e7d32;
-}
-
-.res-status.cancelled {
-  background: #f5f5f5;
-  color: #999;
-}
-
-.res-status.pending {
-  background: #fff8e1;
-  color: #f57f17;
-}
-
-.spinner {
-  display: inline-block;
-  animation: spin 1.5s linear infinite;
-  margin-left: 4px;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.pending-msg {
-  font-size: 0.82rem;
-  color: #f57f17;
-}
-
-.card-body {
-  border-top: 1px solid #f0f0f0;
-  padding-top: 14px;
-  margin-bottom: 14px;
-}
-
-.seat-info {
-  display: flex;
-  gap: 24px;
-  font-size: 0.9rem;
-  color: #444;
-  margin-bottom: 8px;
-}
-
-.price {
-  color: #c62828;
-}
-
-.created-at {
-  font-size: 0.8rem;
-  color: #aaa;
-}
-
-.card-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.btn {
-  padding: 7px 18px;
-  border-radius: 6px;
-  font-size: 0.88rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
-  transition: opacity 0.15s;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn.cancel {
-  background: #fff3e0;
-  color: #e65100;
-  border: 1px solid #ffcc80;
-}
-
-.btn.cancel:hover:not(:disabled) {
-  background: #ffe0b2;
-}
-
-.btn.delete {
-  background: #ffebee;
-  color: #c62828;
-  border: 1px solid #ef9a9a;
-}
-
-.btn.delete:hover:not(:disabled) {
-  background: #ffcdd2;
-}
-
-.btn.pay {
-  background: #1565c0;
-  color: #fff;
-  border: none;
-  font-size: 1rem;
-  font-weight: 700;
-}
-
-.btn.pay:hover {
-  background: #0d47a1;
-}
-
-/* 체크된 카드 강조 */
-.reservation-card.is-checked {
-  border: 2px solid #1565c0;
-  box-shadow: 0 2px 12px rgba(21, 101, 192, 0.18);
-}
-
-/* 카드 상단 좌측 — 체크박스 + 제목 */
-.card-top-left {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.res-checkbox {
-  width: 18px;
-  height: 18px;
-  margin-top: 4px;
-  accent-color: #1565c0;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-/* 결제 하단 바 */
-.pay-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: #1565c0;
-  color: #fff;
-  padding: 14px 28px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
-  z-index: 50;
-}
-
-.pay-bar-info {
-  font-size: 1rem;
-}
-
-.pay-bar-info strong {
-  font-size: 1.1rem;
-}
-
-/* 결제 결과 toast */
-.toast {
-  position: fixed;
-  top: 80px;
-  right: 20px;
-  padding: 12px 20px;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  z-index: 200;
-  animation: fadeIn 0.2s ease;
-}
-
-.toast.success {
-  background: #e8f5e9;
-  color: #2e7d32;
-  border: 1px solid #a5d6a7;
-}
-
-.toast.error {
-  background: #ffebee;
-  color: #c62828;
-  border: 1px solid #ef9a9a;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.center-msg {
-  text-align: center;
-  padding: 60px;
-  color: #888;
-}
-
-.center-msg.error {
-  color: #c62828;
-}
-
-.pagination {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 16px;
-  margin-top: 32px;
-}
-
-.pagination button {
-  padding: 8px 20px;
-  background: #1565c0;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.pagination button:disabled {
-  background: #bbb;
-  cursor: not-allowed;
-}
-
-.pagination span {
-  font-size: 0.95rem;
-  color: #555;
-}
-</style>

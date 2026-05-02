@@ -18,36 +18,14 @@
       </div>
 
       <div class="form-group">
-        <label>카드 번호</label>
+        <label>CVC</label>
         <input
-          v-model="cardNumber"
-          placeholder="0000 0000 0000 0000"
-          maxlength="19"
+          v-model="cvc"
+          placeholder="000"
+          maxlength="3"
           inputmode="numeric"
-          @input="formatCard"
+          @input="cvc = cvc.replace(/\D/g, '')"
         />
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label>유효기간</label>
-          <input
-            v-model="expiry"
-            placeholder="MM/YY"
-            maxlength="5"
-            @input="formatExpiry"
-          />
-        </div>
-        <div class="form-group">
-          <label>CVC</label>
-          <input
-            v-model="cvc"
-            placeholder="000"
-            maxlength="3"
-            inputmode="numeric"
-            @input="cvc = cvc.replace(/\D/g, '')"
-          />
-        </div>
       </div>
 
       <p class="test-hint">
@@ -57,14 +35,14 @@
 
       <div class="modal-actions">
         <button
-          class="btn-cancel"
+          class="ui-btn-cancel"
           :disabled="submitting"
           @click="$emit('close')"
         >
           취소
         </button>
         <button
-          class="btn-confirm"
+          class="ui-btn-confirm"
           :disabled="!isValid || submitting"
           @click="submit"
         >
@@ -77,10 +55,16 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import type { ReservationResponse } from "@/api/types";
+
+interface PaymentItem {
+  id: number;
+  seatNumber: string;
+  tier: string;
+  price: number;
+}
 
 const props = defineProps<{
-  reservations: ReservationResponse[];
+  reservations: PaymentItem[];
   submitting: boolean;
 }>();
 
@@ -89,8 +73,6 @@ const emit = defineEmits<{
   confirm: [cvc: string];
 }>();
 
-const cardNumber = ref("");
-const expiry = ref("");
 const cvc = ref("");
 
 const totalPrice = computed(() =>
@@ -98,20 +80,6 @@ const totalPrice = computed(() =>
 );
 
 const isValid = computed(() => /^\d{3}$/.test(cvc.value));
-
-function formatCard(): void {
-  const digits = cardNumber.value.replace(/\D/g, "").slice(0, 16);
-  cardNumber.value = digits.replace(/(.{4})/g, "$1 ").trim();
-}
-
-function formatExpiry(): void {
-  const digits = expiry.value.replace(/\D/g, "").slice(0, 4);
-  if (digits.length > 2) {
-    expiry.value = digits.slice(0, 2) + "/" + digits.slice(2);
-  } else {
-    expiry.value = digits;
-  }
-}
 
 function formatPrice(price: number): string {
   return Number(price).toLocaleString("ko-KR");
@@ -226,12 +194,6 @@ function submit(): void {
   border-color: #1565c0;
 }
 
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
 .test-hint {
   font-size: 0.8rem;
   color: #888;
@@ -246,41 +208,5 @@ function submit(): void {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
-}
-
-.btn-cancel {
-  padding: 10px 20px;
-  border-radius: 8px;
-  border: 1.5px solid #ddd;
-  background: #fff;
-  color: #555;
-  font-size: 0.95rem;
-  cursor: pointer;
-}
-
-.btn-cancel:hover:not(:disabled) {
-  background: #f5f5f5;
-}
-
-.btn-confirm {
-  padding: 10px 24px;
-  border-radius: 8px;
-  border: none;
-  background: #1565c0;
-  color: #fff;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.btn-confirm:hover:not(:disabled) {
-  background: #0d47a1;
-}
-
-.btn-confirm:disabled,
-.btn-cancel:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 </style>

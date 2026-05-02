@@ -7,8 +7,10 @@ import type {
   PageResponse,
   ReservationResponse,
   ReservationStatus,
-  SeatBulkCreateRequest,
   SeatResponse,
+  StadiumTemplateCreateRequest,
+  StadiumTemplateDetailResponse,
+  StadiumTemplateSummaryResponse,
   UserResponse,
   UserRole,
   UserStatus,
@@ -35,8 +37,21 @@ api.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
-      localStorage.removeItem("isLoggedIn");
-      window.location.href = `${GATEWAY_URL}/login`;
+      // 로그아웃 엔드포인트 자체의 401은 무한 루프 방지를 위해 무시
+      const url = error.config?.url ?? "";
+      if (!url.includes("/api/auth/logout")) {
+        localStorage.removeItem("isLoggedIn");
+        localStorage.removeItem("userRole");
+        // Pinia 상태 동기화 — dynamic import으로 auth.ts 순환 의존성 방지
+        void import("@/stores/auth").then(({ useAuthStore }) => {
+          const store = useAuthStore();
+          store.isLoggedIn = false;
+          store.userRole = null;
+        });
+        if (window.location.pathname !== "/login") {
+          window.location.href = "/login";
+        }
+      }
     }
     return Promise.reject(error);
   },
@@ -60,12 +75,6 @@ export const matchApi = {
     matchId: number | string,
   ): Promise<AxiosResponse<SeatResponse[]>> =>
     api.get(`/matches/${matchId}/seats/all`),
-
-  /** 특정 경기의 예매 가능한(AVAILABLE) 좌석만 조회 */
-  getAvailableSeats: (
-    matchId: number | string,
-  ): Promise<AxiosResponse<SeatResponse[]>> =>
-    api.get(`/matches/${matchId}/seats`),
 };
 
 // ===================== Reservation API =====================
@@ -80,10 +89,6 @@ export const reservationApi = {
     size = 20,
   ): Promise<AxiosResponse<PageResponse<ReservationResponse>>> =>
     api.get("/reservations/me", { params: { page, size } }),
-
-  /** 단일 예약 조회 */
-  getOne: (id: number): Promise<AxiosResponse<ReservationResponse>> =>
-    api.get(`/reservations/${id}`),
 
   /** 예약 취소 (status → CANCELLED, 좌석 AVAILABLE 복원) */
   cancel: (id: number): Promise<AxiosResponse<ReservationResponse>> =>
@@ -107,8 +112,21 @@ export const userApi = {
   getMe: (): Promise<AxiosResponse<UserResponse>> => api.get("/users/me"),
 };
 
+// ===================== Auth API =====================
+export const authApi = {
+  /** 게이트웨이 쿠키(auth_token) 만료 처리 */
+  logout: (): Promise<AxiosResponse<void>> => api.post("/api/auth/logout"),
+};
+
 // ===================== Admin - Match API =====================
 export const adminMatchApi = {
+  /** 관리자 경기 목록 조회 (전체 상태 포함) */
+  getMatches: (
+    page = 0,
+    size = 20,
+  ): Promise<AxiosResponse<PageResponse<MatchResponse>>> =>
+    api.get("/admin/matches", { params: { page, size } }),
+
   /** 경기 등록 */
   createMatch: (
     data: MatchCreateRequest,
@@ -121,12 +139,24 @@ export const adminMatchApi = {
   ): Promise<AxiosResponse<MatchResponse>> =>
     api.patch(`/admin/matches/${id}/status`, null, { params: { status } }),
 
-  /** 좌석 일괄 등록 */
-  bulkCreateSeats: (
-    matchId: number,
-    data: SeatBulkCreateRequest,
-  ): Promise<AxiosResponse<SeatResponse[]>> =>
-    api.post(`/admin/matches/${matchId}/seats`, data),
+  /** 구장 좌석 템플릿 목록 조회 */
+  getStadiumTemplates: (): Promise<
+    AxiosResponse<StadiumTemplateSummaryResponse[]>
+  > => api.get("/admin/matches/stadium-templates"),
+
+  /** 구장 좌석 템플릿 상세 조회 */
+  getStadiumTemplateDetail: (
+    stadiumName: string,
+  ): Promise<AxiosResponse<StadiumTemplateDetailResponse>> =>
+    api.get(
+      `/admin/matches/stadium-templates/${encodeURIComponent(stadiumName)}`,
+    ),
+
+  /** 신규 구장 좌석 템플릿 등록 */
+  createStadiumTemplate: (
+    data: StadiumTemplateCreateRequest,
+  ): Promise<AxiosResponse<StadiumTemplateDetailResponse>> =>
+    api.post("/admin/matches/stadium-templates", data),
 };
 
 // ===================== Admin - Reservation API =====================

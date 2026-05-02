@@ -55,6 +55,19 @@ API 게이트웨이(8082)를 통해 백엔드와 통신합니다.
 | Pinia                   | 전역 상태 관리                            |
 | Vue Router              | SPA 라우팅                                |
 | Axios                   | HTTP 클라이언트 (`withCredentials: true`) |
+| Vanilla Extract         | Zero-Runtime CSS-in-TS                    |
+
+---
+
+## 🎨 스타일 아키텍처
+
+- **화면별 CSS 분리**: `views/*.vue`의 인라인 스타일을 `views/*.css.ts`로 분리
+- **공통 스타일 모듈화**: 버튼/배지/상태/페이지네이션 규칙을 `src/styles/common-ui.css.ts`로 통합
+- **네이밍 표준화**: 공통 클래스는 `ui-` 접두사 사용 (`ui-btn-*`, `ui-badge-*`)
+- **충돌 방지 구조**: 화면 루트 네임스페이스(`.home-page`, `.admin-page` 등) 하위 스코프 적용
+- **빌드 타임 CSS 생성**: Vanilla Extract 기반 정적 CSS 출력
+
+짧은 규칙 문서: `src/styles/UI_NAMING_CONVENTION.md`
 
 ---
 
@@ -68,11 +81,22 @@ src/
 │   ├── NavBar.vue         # 상단 네비게이션
 │   ├── SeatGrid.vue       # 좌석 선택 그리드
 │   └── PaymentModal.vue   # 결제 정보 입력 모달
+├── styles/
+│   ├── theme.ts                    # 테마 타입/토큰
+│   ├── theme.css.ts                # 테마 CSS 변수
+│   ├── global.css.ts               # 전역 스타일
+│   ├── common-ui.css.ts            # 공통 UI 클래스(ui-*)
+│   └── UI_NAMING_CONVENTION.md     # UI 네이밍 컨벤션
 ├── views/
-│   ├── HomeView.vue           # 경기 목록
-│   ├── MatchDetailView.vue    # 경기 상세 + 예약
-│   ├── MyReservationsView.vue # 내 예약 목록 + 결제
-│   └── LoginSuccessView.vue   # OAuth2 로그인 성공 처리
+│   ├── HomeView.vue               # 경기 목록
+│   ├── HomeView.css.ts            # 경기 목록 스타일
+│   ├── MatchDetailView.vue        # 경기 상세 + 예약
+│   ├── MatchDetailView.css.ts     # 경기 상세 스타일
+│   ├── MyReservationsView.vue     # 내 예약 목록 + 결제
+│   ├── MyReservationsView.css.ts  # 내 예약 스타일
+│   ├── AdminView.vue              # 관리자 페이지
+│   ├── AdminView.css.ts           # 관리자 스타일
+│   └── LoginSuccessView.vue       # OAuth2 로그인 성공 처리
 ├── stores/
 │   └── auth.ts            # JWT 토큰 Pinia 스토어
 ├── router/
