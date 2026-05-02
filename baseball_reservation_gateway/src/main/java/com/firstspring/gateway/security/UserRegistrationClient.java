@@ -29,7 +29,7 @@ public class UserRegistrationClient {
 
     public UserRegistrationClient(
             @Value("${reservation.service.url:http://localhost:8080}") String reservationUrl,
-            @Value("${internal.secret}") String internalSecret,
+            @Value("${internal.secret:internal-secret-key}") String internalSecret,
             WebClient.Builder webClientBuilder) {
         this.webClient = webClientBuilder.baseUrl(reservationUrl).build();
         this.internalSecret = internalSecret;
