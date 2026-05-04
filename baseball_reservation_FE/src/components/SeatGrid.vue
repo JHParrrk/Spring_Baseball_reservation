@@ -1,6 +1,6 @@
 <template>
-  <div class="seat-grid">
-    <div class="legend">
+  <div class="seat-grid" aria-label="좌석 선택 영역">
+    <div class="legend" aria-label="좌석 상태 범례">
       <span class="badge available">예매 가능</span>
       <span class="badge pending">선점 중</span>
       <span class="badge reserved">예매 완료</span>
@@ -9,7 +9,12 @@
 
     <div v-if="tiers.length === 0" class="empty">좌석 정보가 없습니다.</div>
 
-    <div v-for="tier in tiers" :key="tier" class="tier-section">
+    <section
+      v-for="tier in tiers"
+      :key="tier"
+      class="tier-section"
+      :aria-label="`${tier} 좌석 구역`"
+    >
       <h3 class="tier-title">{{ tier }}</h3>
       <div class="seats">
         <button
@@ -23,12 +28,15 @@
             selected: selectedSeatIds?.includes(seat.id) ?? false,
           }"
           :disabled="seat.status !== 'AVAILABLE'"
+          :aria-disabled="seat.status !== 'AVAILABLE'"
+          :aria-pressed="selectedSeatIds?.includes(seat.id) ?? false"
+          :aria-label="buildSeatAriaLabel(seat)"
           @click="selectSeat(seat)"
         >
           {{ seat.seatNumber }}
         </button>
       </div>
-    </div>
+    </section>
   </div>
 </template>
 
@@ -59,6 +67,22 @@ const seatsByTier = computed(() => {
 function selectSeat(seat: SeatResponse): void {
   if (seat.status !== "AVAILABLE") return;
   emit("select", seat);
+}
+
+function buildSeatAriaLabel(seat: SeatResponse): string {
+  const statusLabel =
+    seat.status === "AVAILABLE"
+      ? "예매 가능"
+      : seat.status === "PENDING"
+        ? "선점 중"
+        : "예매 완료";
+  const selectedLabel = selectedSeatIdsIncludes(seat.id) ? ", 선택됨" : "";
+
+  return `${seat.tier} ${seat.seatNumber}, ${seat.price.toLocaleString("ko-KR")}원, ${statusLabel}${selectedLabel}`;
+}
+
+function selectedSeatIdsIncludes(seatId: number): boolean {
+  return props.selectedSeatIds?.includes(seatId) ?? false;
 }
 </script>
 

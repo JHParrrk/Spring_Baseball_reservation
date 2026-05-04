@@ -27,3 +27,12 @@ globalStyle("a", {
   color: "inherit",
   textDecoration: "none",
 });
+
+globalStyle(
+  "button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [role='button']:focus-visible",
+  {
+    outline: "3px solid rgba(21, 101, 192, 0.35)",
+    outlineOffset: "2px",
+    borderRadius: "6px",
+  },
+);

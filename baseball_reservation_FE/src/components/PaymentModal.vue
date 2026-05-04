@@ -1,7 +1,14 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal">
-      <h2 class="modal-title">결제 정보 입력</h2>
+  <div class="modal-overlay" @click.self="requestClose">
+    <div
+      ref="modalRef"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="payment-modal-title"
+      aria-describedby="payment-modal-description"
+    >
+      <h2 id="payment-modal-title" class="modal-title">결제 정보 입력</h2>
 
       <div class="price-summary">
         <div v-for="r in reservations" :key="r.id" class="seat-row">
@@ -17,18 +24,28 @@
         </div>
       </div>
 
+      <p id="payment-modal-description" class="sr-only">
+        결제용 CVC 세 자리를 입력하고 결제를 진행하세요.
+      </p>
+
       <div class="form-group">
-        <label>CVC</label>
+        <label for="payment-cvc">CVC</label>
+        <!-- TODO(security): 실서비스에서는 CVC 입력을 자체 UI에서 받지 말고 Stripe.js 같은 SDK 카드 엘리먼트로 대체하세요. -->
         <input
+          id="payment-cvc"
           v-model="cvc"
           placeholder="000"
           maxlength="3"
           inputmode="numeric"
+          autocomplete="cc-csc"
+          :aria-invalid="!isValid && cvc.length > 0"
+          aria-describedby="payment-cvc-hint"
           @input="cvc = cvc.replace(/\D/g, '')"
         />
       </div>
 
-      <p class="test-hint">
+      <p id="payment-cvc-hint" class="test-hint">
+        <!-- TODO(security): 아래 테스트 규칙은 데모용입니다. 운영에서는 결제사 토큰 응답으로 성공/실패를 판단해야 합니다. -->
         🧪 테스트 모드: CVC 마지막 자리 <strong>4~9</strong> → 결제 성공,
         <strong>0~3</strong> → 결제 실패
       </p>
@@ -37,13 +54,15 @@
         <button
           class="ui-btn-cancel"
           :disabled="submitting"
-          @click="$emit('close')"
+          @click="requestClose"
         >
           취소
         </button>
         <button
           class="ui-btn-confirm"
           :disabled="!isValid || submitting"
+          :aria-disabled="!isValid || submitting"
+          :aria-busy="submitting"
           @click="submit"
         >
           {{ submitting ? "처리 중..." : "결제하기" }}
@@ -54,7 +73,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
+import { formatPrice } from "@/utils/format";
 
 interface PaymentItem {
   id: number;
@@ -73,7 +93,9 @@ const emit = defineEmits<{
   confirm: [cvc: string];
 }>();
 
+const modalRef = ref<HTMLElement | null>(null);
 const cvc = ref("");
+let prevFocusedElement: HTMLElement | null = null;
 
 const totalPrice = computed(() =>
   props.reservations.reduce((sum, r) => sum + r.price, 0),
@@ -81,14 +103,73 @@ const totalPrice = computed(() =>
 
 const isValid = computed(() => /^\d{3}$/.test(cvc.value));
 
-function formatPrice(price: number): string {
-  return Number(price).toLocaleString("ko-KR");
-}
-
 function submit(): void {
   if (!isValid.value) return;
   emit("confirm", cvc.value);
 }
+
+function requestClose(): void {
+  if (props.submitting) return;
+  emit("close");
+}
+
+function getFocusableElements(): HTMLElement[] {
+  if (!modalRef.value) return [];
+
+  return Array.from(
+    modalRef.value.querySelectorAll<HTMLElement>(
+      "button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex='-1'])",
+    ),
+  );
+}
+
+function handleKeydown(e: KeyboardEvent): void {
+  if (e.key === "Escape") {
+    e.preventDefault();
+    requestClose();
+    return;
+  }
+
+  if (e.key !== "Tab") return;
+
+  const focusables = getFocusableElements();
+  if (focusables.length === 0) return;
+
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = document.activeElement as HTMLElement | null;
+
+  if (e.shiftKey) {
+    if (!active || active === first || !modalRef.value?.contains(active)) {
+      e.preventDefault();
+      last.focus();
+    }
+    return;
+  }
+
+  if (!active || active === last || !modalRef.value?.contains(active)) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+onMounted(async () => {
+  prevFocusedElement =
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+
+  document.addEventListener("keydown", handleKeydown);
+
+  await nextTick();
+  const [first] = getFocusableElements();
+  first?.focus();
+});
+
+onUnmounted(() => {
+  document.removeEventListener("keydown", handleKeydown);
+  prevFocusedElement?.focus();
+});
 </script>
 
 <style scoped>
@@ -208,5 +289,23 @@ function submit(): void {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
+}
+
+.modal button:focus-visible,
+.modal input:focus-visible {
+  outline: 3px solid rgba(21, 101, 192, 0.35);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 </style>

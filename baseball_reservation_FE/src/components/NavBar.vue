@@ -11,8 +11,13 @@
         <RouterLink v-if="!auth.isLoggedIn" to="/login" class="login-btn"
           >로그인</RouterLink
         >
-        <button v-else class="logout-btn" @click="void auth.logout()">
-          로그아웃
+        <button
+          v-else
+          class="logout-btn"
+          :disabled="isLoggingOut"
+          @click="handleLogout"
+        >
+          {{ isLoggingOut ? "로그아웃 중..." : "로그아웃" }}
         </button>
       </div>
     </div>
@@ -20,8 +25,16 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from "vue";
 import { useAuthStore } from "@/stores/auth";
 const auth = useAuthStore();
+const isLoggingOut = ref(false);
+
+async function handleLogout(): Promise<void> {
+  if (isLoggingOut.value) return;
+  isLoggingOut.value = true;
+  await auth.logout();
+}
 </script>
 
 <style scoped>

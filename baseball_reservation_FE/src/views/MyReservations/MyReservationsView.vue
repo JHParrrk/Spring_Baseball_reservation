@@ -1,11 +1,15 @@
 <template>
-  <div class="my-reservations-page">
+  <div class="my-reservations-page" :aria-busy="loading">
     <div class="page-header">
       <h1>내 예약 내역</h1>
     </div>
 
-    <div v-if="loading" class="center-msg">불러오는 중...</div>
-    <div v-else-if="error" class="center-msg error">{{ error }}</div>
+    <div v-if="loading" class="center-msg" aria-live="polite">
+      불러오는 중...
+    </div>
+    <div v-else-if="error" class="center-msg error" role="alert">
+      {{ error }}
+    </div>
 
     <div v-else-if="reservations.length === 0" class="center-msg">
       예약 내역이 없습니다.
@@ -36,7 +40,7 @@
             </div>
           </div>
           <span class="res-status" :class="res.status.toLowerCase()">
-            {{ statusLabel(res.status) }}
+            {{ reservationStatusLabel(res.status) }}
             <span v-if="res.status === 'PENDING'" class="spinner">⟳</span>
           </span>
         </div>
@@ -120,7 +124,14 @@
     </div>
 
     <!-- 결제 성공/실패 toast -->
-    <div v-if="payResult" class="toast" :class="payResult.type">
+    <div
+      v-if="payResult"
+      class="toast"
+      :class="payResult.type"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
       {{ payResult.message }}
     </div>
 
@@ -132,18 +143,15 @@
       @confirm="pay"
     />
 
-    <div v-if="totalPages > 1" class="pagination">
-      <button :disabled="currentPage === 0" @click="loadPage(currentPage - 1)">
-        이전
-      </button>
-      <span>{{ currentPage + 1 }} / {{ totalPages }}</span>
-      <button
-        :disabled="currentPage >= totalPages - 1"
-        @click="loadPage(currentPage + 1)"
-      >
-        다음
-      </button>
-    </div>
+    <PaginationBar
+      :loading="loading"
+      :current-page="currentPage"
+      :total-pages="totalPages"
+      :can-prev="canPrev"
+      :can-next="canNext"
+      @prev="prevPage"
+      @next="nextPage"
+    />
   </div>
 </template>
 
@@ -151,23 +159,36 @@
 import { ref, computed, onMounted } from "vue";
 import { reservationApi } from "@/api";
 import PaymentModal from "@/components/PaymentModal.vue";
-import type { ReservationResponse, ReservationStatus } from "@/api/types";
+import PaginationBar from "@/components/PaginationBar.vue";
+import { usePagedList } from "@/composables/usePagedList";
+import { useToast } from "@/composables/useToast";
+import { formatDate, formatPrice } from "@/utils/format";
+import { reservationStatusLabel } from "@/utils/statusLabel";
 import "./MyReservationsView.css";
 
-const reservations = ref<ReservationResponse[]>([]);
-const loading = ref(true);
-const error = ref<string | null>(null);
-const currentPage = ref(0);
-const totalPages = ref(1);
+const {
+  items: reservations,
+  loading,
+  error,
+  currentPage,
+  totalPages,
+  canPrev,
+  canNext,
+  loadPage: _loadPage,
+  prevPage,
+  nextPage,
+} = usePagedList(
+  (page) => reservationApi.getMyReservations(page),
+  "예약 내역을 불러오지 못했습니다.",
+);
+
+const { toast: payResult, showToast } = useToast(5000);
+
 const actionId = ref<number | null>(null);
 const confirmingId = ref<number | null>(null);
-
 const checkedIds = ref<number[]>([]);
 const showPaymentModal = ref(false);
 const paySubmitting = ref(false);
-const payResult = ref<{ type: "success" | "error"; message: string } | null>(
-  null,
-);
 
 const checkedReservations = computed(() =>
   reservations.value.filter((r) => checkedIds.value.includes(r.id)),
@@ -187,41 +208,23 @@ function toggleCheck(id: number): void {
 }
 
 async function loadPage(page: number): Promise<void> {
-  loading.value = true;
-  error.value = null;
   checkedIds.value = [];
   confirmingId.value = null;
-  try {
-    const res = await reservationApi.getMyReservations(page);
-    reservations.value = res.data.content;
-    currentPage.value = res.data.number;
-    totalPages.value = res.data.totalPages;
-  } catch {
-    error.value = "예약 내역을 불러오지 못했습니다.";
-  } finally {
-    loading.value = false;
-  }
+  showPaymentModal.value = false;
+  await _loadPage(page);
 }
 
 async function pay(cvc: string): Promise<void> {
   if (checkedIds.value.length === 0) return;
   paySubmitting.value = true;
-  payResult.value = null;
   try {
     await reservationApi.pay([...checkedIds.value], cvc);
     showPaymentModal.value = false;
     checkedIds.value = [];
     await loadPage(currentPage.value);
-    payResult.value = {
-      type: "success",
-      message: "결제 요청 완료! 처리 결과는 잠시 후 확인하세요. ✅",
-    };
-    setTimeout(() => (payResult.value = null), 5000);
+    showToast("success", "결제 요청 완료! 처리 결과는 잠시 후 확인하세요. ✅");
   } catch {
-    payResult.value = {
-      type: "error",
-      message: "결제 요청에 실패했습니다. 다시 시도해주세요.",
-    };
+    showToast("error", "결제 요청에 실패했습니다. 다시 시도해주세요.");
   } finally {
     paySubmitting.value = false;
   }
@@ -234,10 +237,7 @@ async function cancel(id: number): Promise<void> {
     await reservationApi.cancel(id);
     await loadPage(currentPage.value);
   } catch {
-    payResult.value = {
-      type: "error",
-      message: "취소 처리에 실패했습니다.",
-    };
+    showToast("error", "취소 처리에 실패했습니다.");
   } finally {
     actionId.value = null;
   }
@@ -250,37 +250,10 @@ async function deleteRes(id: number): Promise<void> {
     await reservationApi.delete(id);
     await loadPage(currentPage.value);
   } catch {
-    payResult.value = {
-      type: "error",
-      message: "삭제에 실패했습니다.",
-    };
+    showToast("error", "삭제에 실패했습니다.");
   } finally {
     actionId.value = null;
   }
-}
-
-function formatDate(isoStr?: string): string {
-  if (!isoStr) return "";
-  return new Date(isoStr).toLocaleString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatPrice(price: number): string {
-  return Number(price).toLocaleString("ko-KR");
-}
-
-const STATUS_MAP: Partial<Record<ReservationStatus, string>> = {
-  PENDING: "결제 대기 중",
-  CONFIRMED: "예약 완료",
-  CANCELLED: "취소됨",
-};
-function statusLabel(status: ReservationStatus): string {
-  return STATUS_MAP[status] ?? status;
 }
 
 onMounted(() => void loadPage(0));

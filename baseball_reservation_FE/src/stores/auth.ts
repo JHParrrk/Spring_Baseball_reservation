@@ -6,45 +6,45 @@ import type { UserRole } from "@/api/types";
 /**
  * 인증 상태 스토어
  *
- * HTTP-only 쿠키는 JS에서 읽을 수 없으므로 localStorage 플래그로 로그인 여부를 판단합니다.
+ * 실제 인증 여부는 게이트웨이의 HTTP-only JWT 쿠키 검증으로 결정됩니다.
  * - setLoggedIn(): /login/success 라우트에서 OAuth2 완료 후 호출 → /users/me 로 role 조회
  * - logout(): API 401 또는 명시적 로그아웃 시 호출
- * - 실제 인증 여부는 게이트웨이의 JWT 쿠키 검증에서 결정됩니다.
  */
 export const useAuthStore = defineStore("auth", () => {
-  const isLoggedIn = ref(localStorage.getItem("isLoggedIn") === "true");
-  // userRole은 localStorage를 초기 신뢰 소스로 사용하지 않음.
+  const isLoggedIn = ref(false);
   // restoreSession()이 서버에서 role을 검증 후 설정합니다.
   const userRole = ref<UserRole | null>(null);
   const sessionChecked = ref(false);
+  let isLoggingOut = false;
 
   const isAdmin = computed(() => userRole.value === "ADMIN");
 
   async function setLoggedIn(): Promise<void> {
     isLoggedIn.value = true;
     sessionChecked.value = true;
-    localStorage.setItem("isLoggedIn", "true");
     try {
       const res = await userApi.getMe();
       userRole.value = res.data.role;
-      localStorage.setItem("userRole", res.data.role);
-    } catch {
+    } catch (err) {
       // role 조회 실패 시에도 로그인 상태는 유지
+      console.warn("Failed to load role after login:", err);
     }
   }
 
   async function logout(): Promise<void> {
+    if (isLoggingOut) return;
+    isLoggingOut = true;
+
     try {
       await authApi.logout();
-    } catch {
+    } catch (err) {
       // 서버 로그아웃 실패 시에도 클라이언트 상태는 정리합니다.
+      console.warn("Logout API failed; proceeding with local cleanup:", err);
+    } finally {
+      isLoggedIn.value = false;
+      userRole.value = null;
+      sessionChecked.value = true;
     }
-
-    isLoggedIn.value = false;
-    userRole.value = null;
-    sessionChecked.value = true;
-    localStorage.removeItem("isLoggedIn");
-    localStorage.removeItem("userRole");
     window.location.href = "/login";
   }
 
@@ -54,13 +54,10 @@ export const useAuthStore = defineStore("auth", () => {
       const res = await userApi.getMe();
       isLoggedIn.value = true;
       userRole.value = res.data.role;
-      localStorage.setItem("isLoggedIn", "true");
-      localStorage.setItem("userRole", res.data.role);
-    } catch {
+    } catch (err) {
       isLoggedIn.value = false;
       userRole.value = null;
-      localStorage.removeItem("isLoggedIn");
-      localStorage.removeItem("userRole");
+      console.warn("Session restore failed:", err);
     } finally {
       sessionChecked.value = true;
     }

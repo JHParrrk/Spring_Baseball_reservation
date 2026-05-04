@@ -21,7 +21,12 @@
         <form class="form-grid" @submit.prevent="createMatch">
           <label
             >제목
-            <input v-model="matchForm.title" placeholder="경기 제목" required />
+            <input
+              v-model="matchForm.title"
+              placeholder="경기 제목"
+              maxlength="120"
+              required
+            />
           </label>
           <label
             >날짜/시간
@@ -106,9 +111,9 @@
                   :value="statusTargets[m.id]"
                   :disabled="allowedTransitionsFor(m.status).length === 0"
                   @change="
-                    setStatusTarget(
+                    handleMatchStatusChange(
                       m.id,
-                      ($event.target as HTMLSelectElement).value as MatchStatus,
+                      ($event.target as HTMLSelectElement).value,
                     )
                   "
                 >
@@ -165,6 +170,7 @@
           <input
             v-model="newTemplateStadiumName"
             placeholder="예: 잠실야구장"
+            maxlength="100"
             class="stadium-name-input"
           />
         </div>
@@ -172,7 +178,11 @@
         <div class="auto-gen-grid mb-s">
           <label>
             좌석 이름(접두어)
-            <input v-model="autoSeatPrefix" placeholder="예: 일반석" />
+            <input
+              v-model="autoSeatPrefix"
+              placeholder="예: 일반석"
+              maxlength="30"
+            />
           </label>
           <label>
             수량
@@ -255,9 +265,13 @@
         <div class="filter-row">
           <select v-model="resFilter.status">
             <option value="">전체 상태</option>
-            <option value="PENDING">PENDING</option>
-            <option value="CONFIRMED">CONFIRMED</option>
-            <option value="CANCELLED">CANCELLED</option>
+            <option
+              v-for="status in reservationStatusOptions"
+              :key="status"
+              :value="status"
+            >
+              {{ status }}
+            </option>
           </select>
           <input
             v-model.number="resFilter.userId"
@@ -394,16 +408,19 @@
                   class="select-sm"
                   @change="
                     (e) =>
-                      updateUserRole(
+                      handleUserRoleChange(
                         u.id,
-                        (e.target as HTMLSelectElement).value as
-                          | 'USER'
-                          | 'ADMIN',
+                        (e.target as HTMLSelectElement).value,
                       )
                   "
                 >
-                  <option value="USER">USER</option>
-                  <option value="ADMIN">ADMIN</option>
+                  <option
+                    v-for="role in userRoleOptions"
+                    :key="role"
+                    :value="role"
+                  >
+                    {{ role }}
+                  </option>
                 </select>
               </td>
               <td>
@@ -412,20 +429,19 @@
                   class="select-sm"
                   @change="
                     (e) =>
-                      updateUserStatus(
+                      handleUserStatusChange(
                         u.id,
-                        (e.target as HTMLSelectElement).value as
-                          | 'active'
-                          | 'inactive'
-                          | 'suspended'
-                          | 'blacklisted',
+                        (e.target as HTMLSelectElement).value,
                       )
                   "
                 >
-                  <option value="active">active</option>
-                  <option value="inactive">inactive</option>
-                  <option value="suspended">suspended</option>
-                  <option value="blacklisted">blacklisted</option>
+                  <option
+                    v-for="status in userStatusOptions"
+                    :key="status"
+                    :value="status"
+                  >
+                    {{ status }}
+                  </option>
                 </select>
               </td>
             </tr>
@@ -456,7 +472,7 @@
 <script setup lang="ts">
 import "./AdminView.css";
 import { ref, watch, computed } from "vue";
-import { adminMatchApi, adminReservationApi, adminUserApi } from "@/api";
+import { adminMatchApi, adminReservationApi, adminUserApi } from "@/api/admin";
 import type {
   AdminReservationResponse,
   MatchResponse,
@@ -468,6 +484,9 @@ import type {
   UserStatus,
   UserSummaryResponse,
 } from "@/api/types";
+import { formatDate } from "@/utils/format";
+import { useFormMsg } from "@/composables/useFormMsg";
+import { extractApiError } from "@/utils/apiError";
 
 // ── 탭 ──────────────────────────────────────────────
 const tabs = [
@@ -491,14 +510,18 @@ watch(activeTab, (tab) => {
 // ── 경기 등록 ─────────────────────────────────────
 const matchForm = ref({ title: "", matchDate: "", stadiumName: "" });
 const matchLoading = ref(false);
-const matchMsg = ref("");
-const matchMsgError = ref(false);
+const {
+  msg: matchMsg,
+  isError: matchMsgError,
+  setMsg: setMatchMsg,
+} = useFormMsg();
 const stadiumTemplates = ref<StadiumTemplateSummaryResponse[]>([]);
 const stadiumTemplatesLoading = ref(false);
 const selectedStadiumTemplate = ref<StadiumTemplateDetailResponse | null>(null);
 
 async function loadStadiumTemplates(): Promise<void> {
   stadiumTemplatesLoading.value = true;
+  setMatchMsg("");
   try {
     const res = await adminMatchApi.getStadiumTemplates();
     stadiumTemplates.value = res.data;
@@ -516,6 +539,7 @@ async function loadStadiumTemplates(): Promise<void> {
   } catch {
     stadiumTemplates.value = [];
     selectedStadiumTemplate.value = null;
+    setMatchMsg("구장 템플릿을 불러오지 못했습니다.", true);
   } finally {
     stadiumTemplatesLoading.value = false;
   }
@@ -575,20 +599,18 @@ const groupedBlocks = computed(() => {
 
 async function createMatch() {
   if (!matchForm.value.stadiumName) {
-    matchMsg.value = "구장 템플릿을 먼저 선택하세요.";
-    matchMsgError.value = true;
+    setMatchMsg("구장 템플릿을 먼저 선택하세요.", true);
     return;
   }
 
   matchLoading.value = true;
-  matchMsg.value = "";
+  setMatchMsg("");
   try {
     await adminMatchApi.createMatch({
       ...matchForm.value,
       matchDate: matchForm.value.matchDate + ":00",
     });
-    matchMsg.value = "경기가 등록되었습니다.";
-    matchMsgError.value = false;
+    setMatchMsg("경기가 등록되었습니다.");
     matchForm.value = {
       title: "",
       matchDate: "",
@@ -596,10 +618,7 @@ async function createMatch() {
     };
     await loadAdminMatches(0);
   } catch (e: unknown) {
-    const axiosError = e as { response?: { data?: { message?: string } } };
-    const serverMsg = axiosError?.response?.data?.message;
-    matchMsg.value = serverMsg ?? "경기 등록에 실패했습니다.";
-    matchMsgError.value = true;
+    setMatchMsg(extractApiError(e, "경기 등록에 실패했습니다."), true);
   } finally {
     matchLoading.value = false;
   }
@@ -612,6 +631,24 @@ const TRANSITIONS: Record<string, MatchStatus[]> = {
   CLOSED: [],
   CANCELLED: [],
 };
+const matchStatusOptions: MatchStatus[] = [
+  "UPCOMING",
+  "ON_SALE",
+  "CLOSED",
+  "CANCELLED",
+];
+const reservationStatusOptions: ReservationStatus[] = [
+  "PENDING",
+  "CONFIRMED",
+  "CANCELLED",
+];
+const userRoleOptions: UserRole[] = ["USER", "ADMIN"];
+const userStatusOptions: UserStatus[] = [
+  "active",
+  "inactive",
+  "suspended",
+  "blacklisted",
+];
 
 // ── 경기 상태 변경(리스트 기반) ─────────────────────
 const adminMatches = ref<MatchResponse[]>([]);
@@ -620,8 +657,11 @@ const adminMatchesPage = ref(0);
 const adminMatchesTotalPages = ref(0);
 const statusTargets = ref<Record<number, MatchStatus>>({});
 const statusLoading = ref(false);
-const statusMsg = ref("");
-const statusMsgError = ref(false);
+const {
+  msg: statusMsg,
+  isError: statusMsgError,
+  setMsg: setStatusMsg,
+} = useFormMsg();
 
 function allowedTransitionsFor(current: MatchStatus): MatchStatus[] {
   return TRANSITIONS[current] ?? [];
@@ -631,11 +671,40 @@ function setStatusTarget(matchId: number, nextStatus: MatchStatus) {
   statusTargets.value[matchId] = nextStatus;
 }
 
+function parseMatchStatus(value: string): MatchStatus | null {
+  return matchStatusOptions.includes(value as MatchStatus)
+    ? (value as MatchStatus)
+    : null;
+}
+
+function parseUserRole(value: string): UserRole | null {
+  return userRoleOptions.includes(value as UserRole)
+    ? (value as UserRole)
+    : null;
+}
+
+function parseUserStatus(value: string): UserStatus | null {
+  return userStatusOptions.includes(value as UserStatus)
+    ? (value as UserStatus)
+    : null;
+}
+
+function handleMatchStatusChange(matchId: number, value: string): void {
+  const parsed = parseMatchStatus(value);
+  if (!parsed) {
+    setStatusMsg("유효하지 않은 경기 상태 값입니다.", true);
+    return;
+  }
+  setStatusTarget(matchId, parsed);
+}
+
 async function loadAdminMatches(page: number): Promise<void> {
+  const safePage = Math.max(0, page);
   adminMatchesLoading.value = true;
-  adminMatchesPage.value = page;
+  setStatusMsg("");
+  adminMatchesPage.value = safePage;
   try {
-    const res = await adminMatchApi.getMatches(page, 20);
+    const res = await adminMatchApi.getMatches(safePage, 20);
     adminMatches.value = res.data.content;
     adminMatchesTotalPages.value = res.data.totalPages;
 
@@ -650,6 +719,7 @@ async function loadAdminMatches(page: number): Promise<void> {
   } catch {
     adminMatches.value = [];
     adminMatchesTotalPages.value = 0;
+    setStatusMsg("경기 목록을 불러오지 못했습니다.", true);
   } finally {
     adminMatchesLoading.value = false;
   }
@@ -660,17 +730,13 @@ async function updateMatchStatus(matchId: number) {
   if (!nextStatus) return;
 
   statusLoading.value = true;
-  statusMsg.value = "";
+  setStatusMsg("");
   try {
     await adminMatchApi.updateMatchStatus(matchId, nextStatus);
-    statusMsg.value = "상태가 변경되었습니다.";
-    statusMsgError.value = false;
+    setStatusMsg("상태가 변경되었습니다.");
     await loadAdminMatches(adminMatchesPage.value);
   } catch (e: unknown) {
-    const axiosError = e as { response?: { data?: { message?: string } } };
-    const serverMsg = axiosError?.response?.data?.message;
-    statusMsg.value = serverMsg ?? "상태 변경에 실패했습니다.";
-    statusMsgError.value = true;
+    setStatusMsg(extractApiError(e, "상태 변경에 실패했습니다."), true);
   } finally {
     statusLoading.value = false;
   }
@@ -679,8 +745,11 @@ async function updateMatchStatus(matchId: number) {
 // ── 좌석 일괄 등록 ────────────────────────────────
 const newTemplateStadiumName = ref("");
 const seatLoading = ref(false);
-const seatMsg = ref("");
-const seatMsgError = ref(false);
+const {
+  msg: seatMsg,
+  isError: seatMsgError,
+  setMsg: setSeatMsg,
+} = useFormMsg();
 const autoSeatPrefix = ref("일반석");
 const autoSeatCount = ref<number | null>(null);
 const autoSeatStartNo = ref(1);
@@ -704,15 +773,18 @@ function addGeneratedSeats() {
   const price = autoSeatPrice.value ?? 0;
 
   if (!prefix || !tier || count <= 0 || startNo <= 0 || price <= 0) {
-    seatMsg.value = "좌석 이름/수량/시작번호/등급/가격을 올바르게 입력하세요.";
-    seatMsgError.value = true;
+    setSeatMsg(
+      "좌석 이름/수량/시작번호/등급/가격을 올바르게 입력하세요.",
+      true,
+    );
     return;
   }
 
   // 미리보기 리스트에 추가
   autoGenerateList.value.push({ prefix, count, startNo, tier, price });
-  seatMsg.value = `${prefix} ${startNo}-${startNo + count - 1} 블록이 추가되었습니다.`;
-  seatMsgError.value = false;
+  setSeatMsg(
+    `${prefix} ${startNo}-${startNo + count - 1} 블록이 추가되었습니다.`,
+  );
   // 입력값 초기화
   autoSeatPrefix.value = "일반석";
   autoSeatCount.value = null;
@@ -723,14 +795,12 @@ function addGeneratedSeats() {
 
 function removeGeneratedBlock(index: number) {
   autoGenerateList.value.splice(index, 1);
-  seatMsg.value = "블록이 제거되었습니다.";
-  seatMsgError.value = false;
+  setSeatMsg("블록이 제거되었습니다.");
 }
 
 async function createStadiumTemplate() {
   if (!newTemplateStadiumName.value.trim()) {
-    seatMsg.value = "구장 이름을 입력하세요.";
-    seatMsgError.value = true;
+    setSeatMsg("구장 이름을 입력하세요.", true);
     return;
   }
 
@@ -747,30 +817,27 @@ async function createStadiumTemplate() {
   autoGenerateList.value = [];
 
   if (!seats.length) {
-    seatMsg.value = "최소 1개 이상의 좌석을 등록하세요.";
-    seatMsgError.value = true;
+    setSeatMsg("최소 1개 이상의 좌석을 등록하세요.", true);
     return;
   }
 
   seatLoading.value = true;
-  seatMsg.value = "";
+  setSeatMsg("");
   try {
     const res = await adminMatchApi.createStadiumTemplate({
       stadiumName: newTemplateStadiumName.value.trim(),
       seats,
     });
 
-    seatMsg.value = `${res.data.stadiumName} 템플릿이 등록되었습니다. (${res.data.seatCount}석)`;
-    seatMsgError.value = false;
+    setSeatMsg(
+      `${res.data.stadiumName} 템플릿이 등록되었습니다. (${res.data.seatCount}석)`,
+    );
     newTemplateStadiumName.value = "";
     await loadStadiumTemplates();
     matchForm.value.stadiumName = res.data.stadiumName;
     await loadStadiumTemplateDetail(res.data.stadiumName);
   } catch (e: unknown) {
-    const axiosError = e as { response?: { data?: { message?: string } } };
-    const serverMsg = axiosError?.response?.data?.message;
-    seatMsg.value = serverMsg ?? "구장 템플릿 등록에 실패했습니다.";
-    seatMsgError.value = true;
+    setSeatMsg(extractApiError(e, "구장 템플릿 등록에 실패했습니다."), true);
   } finally {
     seatLoading.value = false;
   }
@@ -790,17 +857,18 @@ const reservations = ref<AdminReservationResponse[]>([]);
 const resLoading = ref(false);
 const resPage = ref(0);
 const resTotalPages = ref(0);
-const resMsg = ref("");
-const resMsgError = ref(false);
+const { msg: resMsg, isError: resMsgError, setMsg: setResMsg } = useFormMsg();
 const confirmingResId = ref<number | null>(null);
 
 async function loadReservations(page: number) {
+  const safePage = Math.max(0, page);
   resLoading.value = true;
-  resPage.value = page;
+  setResMsg("");
+  resPage.value = safePage;
   confirmingResId.value = null;
   try {
     const res = await adminReservationApi.getReservations({
-      page,
+      page: safePage,
       size: 20,
       ...(resFilter.value.status ? { status: resFilter.value.status } : {}),
       ...(resFilter.value.userId ? { userId: resFilter.value.userId } : {}),
@@ -810,6 +878,8 @@ async function loadReservations(page: number) {
     resTotalPages.value = res.data.totalPages;
   } catch {
     reservations.value = [];
+    resTotalPages.value = 0;
+    setResMsg("예약 목록을 불러오지 못했습니다.", true);
   } finally {
     resLoading.value = false;
   }
@@ -819,12 +889,10 @@ async function cancelReservation(id: number) {
   confirmingResId.value = null;
   try {
     await adminReservationApi.cancelReservation(id);
-    resMsg.value = "";
-    resMsgError.value = false;
+    setResMsg("");
     await loadReservations(resPage.value);
-  } catch {
-    resMsg.value = "강제 취소에 실패했습니다.";
-    resMsgError.value = true;
+  } catch (e: unknown) {
+    setResMsg(extractApiError(e, "강제 취소에 실패했습니다."), true);
   }
 }
 
@@ -833,17 +901,25 @@ const users = ref<UserSummaryResponse[]>([]);
 const usersLoading = ref(false);
 const usersPage = ref(0);
 const usersTotalPages = ref(0);
-const userMsg = ref("");
-const userMsgError = ref(false);
+const {
+  msg: userMsg,
+  isError: userMsgError,
+  setMsg: setUserMsg,
+} = useFormMsg();
 async function loadUsers(page: number) {
+  const maxPage = Math.max(0, usersTotalPages.value - 1);
+  const safePage = Math.max(0, Math.min(page, maxPage || page));
   usersLoading.value = true;
-  usersPage.value = page;
+  setUserMsg("");
+  usersPage.value = safePage;
   try {
-    const res = await adminUserApi.getUsers(page, 20);
+    const res = await adminUserApi.getUsers(safePage, 20);
     users.value = res.data.content;
     usersTotalPages.value = res.data.totalPages;
   } catch {
     users.value = [];
+    usersTotalPages.value = 0;
+    setUserMsg("사용자 목록을 불러오지 못했습니다.", true);
   } finally {
     usersLoading.value = false;
   }
@@ -854,10 +930,18 @@ async function updateUserRole(id: number, role: UserRole) {
     await adminUserApi.updateUserRole(id, role);
     const u = users.value.find((u) => u.id === id);
     if (u) u.role = role;
-  } catch {
-    userMsg.value = "역할 변경에 실패했습니다.";
-    userMsgError.value = true;
+  } catch (e: unknown) {
+    setUserMsg(extractApiError(e, "역할 변경에 실패했습니다."), true);
   }
+}
+
+async function handleUserRoleChange(id: number, value: string): Promise<void> {
+  const role = parseUserRole(value);
+  if (!role) {
+    setUserMsg("유효하지 않은 사용자 역할 값입니다.", true);
+    return;
+  }
+  await updateUserRole(id, role);
 }
 
 async function updateUserStatus(id: number, status: UserStatus) {
@@ -865,17 +949,24 @@ async function updateUserStatus(id: number, status: UserStatus) {
     await adminUserApi.updateUserStatus(id, status);
     const u = users.value.find((u) => u.id === id);
     if (u) u.status = status;
-  } catch {
-    userMsg.value = "상태 변경에 실패했습니다.";
-    userMsgError.value = true;
+  } catch (e: unknown) {
+    setUserMsg(extractApiError(e, "상태 변경에 실패했습니다."), true);
   }
 }
 
-// ── 헬퍼 ─────────────────────────────────────────
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString("ko-KR", { hour12: false });
+async function handleUserStatusChange(
+  id: number,
+  value: string,
+): Promise<void> {
+  const status = parseUserStatus(value);
+  if (!status) {
+    setUserMsg("유효하지 않은 사용자 상태 값입니다.", true);
+    return;
+  }
+  await updateUserStatus(id, status);
 }
 
+// ── 헬퍼 ─────────────────────────────────────────
 function statusClass(s: ReservationStatus) {
   return {
     "ui-badge-confirmed": s === "CONFIRMED",
